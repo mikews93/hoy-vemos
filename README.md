@@ -40,3 +40,10 @@ Sin OMDb se usa la nota de TMDB como aproximación de la de IMDb.
 - Seguimiento de series por episodio y avisos cuando algo de la lista llega a sus plataformas.
 
 Diseño: lienzo "Recomendador – Diseño de interfaces" (estilo "Sala oscura").
+
+## Publicación
+
+Cada push a `main` publica la app en GitHub Pages (`.github/workflows/deploy.yml`).
+En el repositorio: Settings → Pages → Source: "GitHub Actions". Para datos reales, en
+Settings → Secrets and variables → Actions agrega los secretos `TMDB_TOKEN` y `OMDB_KEY`
+(y opcionalmente la variable `REGION`).
