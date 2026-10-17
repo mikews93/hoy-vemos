@@ -67,6 +67,7 @@ export default function Perfil() {
       <div className="row-head"><h2 className="h2">Datos</h2></div>
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="sub" style={{ margin: 0 }}>{s.live ? 'Usando datos reales de TMDB.' : 'Modo demostración con catálogo de ejemplo.'}</p>
+        <p className="note" style={{ margin: 0 }}>Esta app usa la API de TMDB, pero no está respaldada ni certificada por TMDB. Notas de IMDb, Rotten Tomatoes y Metacritic vía OMDb; disponibilidad de JustWatch vía TMDB.</p>
         {confirmReset ? (
           <div style={{ display: 'flex', gap: 10 }}>
             <button className="btn" style={{ flex: 1, borderColor: 'var(--coral)', color: 'var(--coral)' }} onClick={() => { s.reset(); nav('/') }}>Sí, borrar todo</button>
