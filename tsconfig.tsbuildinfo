@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/components/ui.tsx","./src/data/demo.ts","./src/data/live.ts","./src/data/types.ts","./src/lib/recommender.ts","./src/lib/store.tsx","./src/screens/Explorar.tsx","./src/screens/Ficha.tsx","./src/screens/Hoy.tsx","./src/screens/Lista.tsx","./src/screens/Onboarding.tsx","./src/screens/Pareja.tsx","./src/screens/Perfil.tsx"],"version":"5.9.2"}

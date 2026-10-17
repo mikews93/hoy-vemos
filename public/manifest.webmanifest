@@ -1,0 +1,11 @@
+{
+  "name": "Hoy Vemos",
+  "short_name": "Hoy Vemos",
+  "description": "Qué ver hoy en pareja: solo lo mejor, elegido para ustedes cada día.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0F0E13",
+  "theme_color": "#0F0E13",
+  "lang": "es",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
