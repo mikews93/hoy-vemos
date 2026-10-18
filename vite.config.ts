@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       'import.meta.env.VITE_API_PROXY': JSON.stringify(env.VITE_API_PROXY ?? (env.VERCEL ? '1' : '')),
+      // En Vercel las claves nunca entran al JavaScript, aunque un .env local se cuele en el despliegue
+      ...(env.VERCEL ? { 'import.meta.env.VITE_TMDB_TOKEN': '""', 'import.meta.env.VITE_OMDB_KEY': '""' } : {}),
     },
   }
 })

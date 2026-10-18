@@ -1,0 +1,4 @@
+# El CLI de Vercel sube la carpeta local: nunca subir claves
+.env
+.env.*
+!.env.example

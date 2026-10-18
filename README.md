@@ -62,7 +62,7 @@ La app se publica en Vercel. Las funciones `api/tmdb.ts` y `api/omdb.ts` hacen d
 | `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → clave publishable/anon |
 | `VITE_REGION` | `CO` (opcional) |
 
-   No pongas `VITE_TMDB_TOKEN` ni `VITE_OMDB_KEY` en Vercel: si existen, el build las mete en el JavaScript público.
+   No pongas `VITE_TMDB_TOKEN` ni `VITE_OMDB_KEY` en Vercel. Por si acaso, el build en Vercel las ignora y `.vercelignore` evita que `vercel deploy` suba tu `.env`.
 3. En Supabase → Authentication → URL Configuration, pon la URL de Vercel como **Site URL** y agrégala en **Redirect URLs** (para los correos de confirmación y de cambio de contraseña).
 4. Opcional: Authentication → Sign In / Providers → Email → desactivar "Confirm email" para que la cuenta quede lista al instante. El correo de Supabase sin SMTP propio tiene un límite bajo por hora.
 
