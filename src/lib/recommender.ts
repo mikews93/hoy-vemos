@@ -191,3 +191,15 @@ export function moodSearch(catalog: Title[], q: string, s: Settings, votes: Vote
     .slice(0, 9)
     .map(({ t }) => t)
 }
+
+// Todo el catálogo que pasa los filtros, de lo que más les puede gustar a los dos a lo menos (fondo de Explorar)
+export function browseAll(catalog: Title[], votes: Record<PersonId, Votes>, s: Settings, exclude: string[]): Title[] {
+  const all = [votes.a, votes.b]
+  const wa = learn(votes.a, catalog)
+  const wb = learn(votes.b, catalog)
+  return catalog
+    .filter((t) => eligible(t, s, all) && !exclude.includes(t.id))
+    .map((t) => ({ t, s: (affinity(t, wa) + affinity(t, wb)) * 0.5 + quality(t) }))
+    .sort((a, b) => b.s - a.s)
+    .map(({ t }) => t)
+}

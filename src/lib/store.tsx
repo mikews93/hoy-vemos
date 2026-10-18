@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import type { Person, PersonId, Title, Votes } from '../data/types'
 import { DEMO_CATALOG } from '../data/demo'
-import { hasLiveData, loadLiveCatalog, loadTitles } from '../data/live'
+import { hasLiveData, loadLiveCatalog, loadMoreLive, loadTitles, type LiveCatalog } from '../data/live'
 import { buildDaily, type DailyPicks, type Settings } from './recommender'
 import { hasCloud, pendingInvite, supabase } from './supabase'
 
@@ -53,6 +53,7 @@ interface Store extends Saved {
   catalog: Title[]
   byId: Map<string, Title>
   loading: boolean
+  more: More // trae otra página del catálogo (scroll infinito de Explorar)
   live: boolean
   cloud: boolean // cada uno en su teléfono con su cuenta
   partnerJoined: boolean
@@ -75,17 +76,46 @@ interface Store extends Saved {
 
 const Ctx = createContext<Store | null>(null)
 
+export interface More {
+  load: () => void
+  loading: boolean
+  done: boolean
+}
+
 function useCatalog() {
+  const [live, setLive] = useState<LiveCatalog | null>(null)
   const [catalog, setCatalog] = useState<Title[]>(hasLiveData ? [] : DEMO_CATALOG)
   const [loading, setLoading] = useState(hasLiveData)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const busy = useRef(false)
   useEffect(() => {
     if (!hasLiveData) return
     loadLiveCatalog()
-      .then((items) => setCatalog(items.length ? items : DEMO_CATALOG))
+      .then((c) => {
+        setLive(c)
+        setCatalog(c.items.length ? c.items : DEMO_CATALOG)
+      })
       .catch(() => setCatalog(DEMO_CATALOG))
       .finally(() => setLoading(false))
   }, [])
-  return { catalog, loading }
+  const load = useCallback(() => {
+    if (!live || live.done || busy.current) return
+    busy.current = true
+    setLoadingMore(true)
+    loadMoreLive(live)
+      .then((c) => {
+        setLive(c)
+        setCatalog(c.items)
+      })
+      // si falla se deja de pedir hasta recargar, para no repetir errores en bucle
+      .catch(() => setLive((l) => l && { ...l, done: true }))
+      .finally(() => {
+        busy.current = false
+        setLoadingMore(false)
+      })
+  }, [live])
+  const more = useMemo<More>(() => ({ load, loading: loadingMore, done: !live || live.done }), [load, loadingMore, live])
+  return { catalog, loading, more }
 }
 
 // Lo guardado (Mi lista, listas recientes) puede no estar en el catálogo de hoy: se agrega al catálogo
@@ -169,6 +199,7 @@ function LocalStoreProvider({ children }: { children: ReactNode }) {
       ...d,
       catalog,
       loading,
+      more: base.more,
       live: hasLiveData,
       cloud: false,
       partnerJoined: true,
@@ -191,7 +222,7 @@ function LocalStoreProvider({ children }: { children: ReactNode }) {
       signOut: () => {},
       reset: () => setSaved(initial),
     }
-  }, [saved, catalog, loading])
+  }, [saved, catalog, loading, base.more])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }
@@ -346,6 +377,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
       ...d,
       catalog,
       loading,
+      more: base.more,
       live: hasLiveData,
       cloud: true,
       partnerJoined: meta.partnerJoined,
@@ -409,7 +441,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
           return sb.from('profiles').update({ onboarded: false }).eq('id', userId)
         }),
     }
-  }, [saved, catalog, loading, meta, sb, userId, refetch, fetchAll])
+  }, [saved, catalog, loading, base.more, meta, sb, userId, refetch, fetchAll])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }
