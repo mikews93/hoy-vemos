@@ -57,19 +57,30 @@ export default function Onboarding() {
 
       {step === 1 && (
         <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
-          <h1 className="h1" style={{ fontSize: 34 }}>¿Quiénes van a ver?</h1>
-          <p className="sub" style={{ margin: 0 }}>Cada uno tiene sus gustos; la app busca lo que les guste a los dos.</p>
+          <h1 className="h1" style={{ fontSize: 34 }}>{s.cloud ? '¿Cómo te llamas?' : '¿Quiénes van a ver?'}</h1>
+          <p className="sub" style={{ margin: 0 }}>
+            {s.cloud
+              ? s.partnerJoined
+                ? `Ya estás conectado con ${s.people.b.name}. Ahora cuéntanos tus gustos.`
+                : 'Cada uno tiene sus gustos; la app busca lo que les guste a los dos. Al terminar puedes invitar a tu pareja.'
+              : 'Cada uno tiene sus gustos; la app busca lo que les guste a los dos.'}
+          </p>
           <label className="field">Tu nombre<input className="input" value={a} onChange={(e) => setA(e.target.value)} autoComplete="given-name" /></label>
-          <label className="field">Nombre de tu pareja<input className="input" value={b} onChange={(e) => setB(e.target.value)} placeholder="Opcional" /></label>
+          {!s.cloud && <label className="field">Nombre de tu pareja<input className="input" value={b} onChange={(e) => setB(e.target.value)} placeholder="Opcional" /></label>}
           <button className="btn gold block" style={{ height: 54, marginTop: 8 }} disabled={!a.trim()}
-            onClick={() => { s.rename('a', a.trim()); s.rename('b', b.trim() || 'Pareja'); s.setActive('a'); setStep(2) }}>Continuar</button>
+            onClick={() => {
+              if (a.trim() !== s.people.a.name) s.rename('a', a.trim())
+              if (!s.cloud) s.rename('b', b.trim() || 'Pareja')
+              s.setActive('a')
+              setStep(2)
+            }}>Continuar</button>
         </div>
       )}
 
       {step === 2 && (
         <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 14 }}>
           <h1 className="h1" style={{ fontSize: 34 }}>¿Qué plataformas tienen?</h1>
-          <p className="sub" style={{ margin: 0 }}>Solo les recomendamos lo que pueden ver. Si no eliges ninguna, mostramos todo.</p>
+          <p className="sub" style={{ margin: 0 }}>Solo les recomendamos lo que pueden ver. Si no eliges ninguna, mostramos todo.{s.cloud && s.partnerJoined ? ` Esto lo comparten con ${s.people.b.name}.` : ''}</p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             {PLATFORMS.map((p) => (
               <button key={p} className={`chip${s.settings.platforms.includes(p) ? ' on' : ''}`} style={{ height: 44, padding: '0 16px', fontSize: 14 }} aria-pressed={s.settings.platforms.includes(p)} onClick={() => togglePlatform(p)}>{p}</button>

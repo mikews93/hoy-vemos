@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { PLATFORMS } from '../data/demo'
 import { RateGrid } from './Onboarding'
+import { Invite } from '../components/Invite'
 import type { PersonId } from '../data/types'
 
 export default function Perfil() {
@@ -30,22 +31,37 @@ export default function Perfil() {
     <div className="screen">
       <div className="pad">
         <h1 className="h1">Perfil</h1>
-        <p className="sub">Este dispositivo lo comparten {s.people.a.name} y {s.people.b.name}.</p>
+        <p className="sub">{s.cloud ? `${s.people.a.name} · ${s.email ?? ''}` : `Este dispositivo lo comparten ${s.people.a.name} y ${s.people.b.name}.`}</p>
       </div>
 
-      <div className="row-head"><h2 className="h2">¿Quién está usando la app?</h2></div>
-      <div className="pad" style={{ display: 'flex', gap: 10 }}>
-        {(['a', 'b'] as PersonId[]).map((p) => (
-          <button key={p} className={`chip${s.active === p ? (p === 'a' ? ' on' : ' coral on') : ''}`} style={{ height: 44, padding: '0 18px', fontSize: 14 }} aria-pressed={s.active === p} onClick={() => s.setActive(p)}>
-            {s.people[p].name}
-          </button>
-        ))}
-      </div>
-      <div className="pad" style={{ marginTop: 14 }}>
-        <button className="btn block" onClick={() => { s.setActive(partner); setRating(true) }}>Que {s.people[partner].name} califique sus favoritas</button>
-      </div>
+      {s.cloud && (
+        <>
+          <div className="row-head"><h2 className="h2">{s.partnerJoined ? 'Tu pareja' : 'Invita a tu pareja'}</h2></div>
+          <Invite />
+        </>
+      )}
 
-      <div className="row-head"><h2 className="h2">Plataformas</h2></div>
+      {s.cloud ? (
+        <div className="pad" style={{ marginTop: 14 }}>
+          <button className="btn block" onClick={() => setRating(true)}>Calificar más favoritas</button>
+        </div>
+      ) : (
+        <>
+          <div className="row-head"><h2 className="h2">¿Quién está usando la app?</h2></div>
+          <div className="pad" style={{ display: 'flex', gap: 10 }}>
+            {(['a', 'b'] as PersonId[]).map((p) => (
+              <button key={p} className={`chip${s.active === p ? (p === 'a' ? ' on' : ' coral on') : ''}`} style={{ height: 44, padding: '0 18px', fontSize: 14 }} aria-pressed={s.active === p} onClick={() => s.setActive(p)}>
+                {s.people[p].name}
+              </button>
+            ))}
+          </div>
+          <div className="pad" style={{ marginTop: 14 }}>
+            <button className="btn block" onClick={() => { s.setActive(partner); setRating(true) }}>Que {s.people[partner].name} califique sus favoritas</button>
+          </div>
+        </>
+      )}
+
+      <div className="row-head"><h2 className="h2">Plataformas{s.cloud && s.partnerJoined ? ' (de los dos)' : ''}</h2></div>
       <div className="pad" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {PLATFORMS.map((p) => (
           <button key={p} className={`chip${s.settings.platforms.includes(p) ? ' on' : ''}`} aria-pressed={s.settings.platforms.includes(p)} onClick={() => togglePlatform(p)}>{p}</button>
@@ -74,8 +90,9 @@ export default function Perfil() {
             <button className="btn" style={{ flex: 1 }} onClick={() => setConfirmReset(false)}>Cancelar</button>
           </div>
         ) : (
-          <button className="btn" onClick={() => setConfirmReset(true)}>Empezar de cero</button>
+          <button className="btn" onClick={() => setConfirmReset(true)}>{s.cloud ? 'Borrar mis calificaciones' : 'Empezar de cero'}</button>
         )}
+        {s.cloud && <button className="btn" onClick={s.signOut}>Cerrar sesión</button>}
       </div>
     </div>
   )

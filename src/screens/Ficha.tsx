@@ -66,7 +66,7 @@ export default function Ficha() {
 
       <div className="pad" style={{ display: 'flex', gap: 10, marginTop: 20 }}>
         <button className="btn primary" style={{ flex: 1, height: 52 }} aria-pressed={s.myList.includes(t.id)} onClick={() => s.toggleList(t.id)}>
-          {s.myList.includes(t.id) ? Icon.check(18) : Icon.plus(18)}{s.myList.includes(t.id) ? 'En mi lista' : 'Mi lista'}
+          {s.myList.includes(t.id) ? Icon.check(18) : Icon.plus(18)}{s.myList.includes(t.id) ? 'En Mi lista' : 'Guardar'}
         </button>
         <button className="btn" style={{ flex: 1, height: 52 }} aria-pressed={isSeen} onClick={() => (isSeen ? s.clearVote(t.id) : s.vote(t.id, 'seen'))}>
           {Icon.check(18)}{isSeen ? 'Vista' : 'Ya la vi'}

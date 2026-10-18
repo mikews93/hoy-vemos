@@ -1,22 +1,28 @@
 import type { Title, Kind, Provider } from './types'
 
 // Datos reales: TMDB (catálogo, pósters, tráileres, dónde ver) + OMDb (IMDb, Rotten Tomatoes, Metacritic).
-// Se activa cuando existe VITE_TMDB_TOKEN. El catálogo se guarda un día en el navegador.
+// Dos formas de conectarse:
+// - Proxy (Vercel): /api/tmdb y /api/omdb guardan las claves en el servidor. Se activa solo al publicar en Vercel
+//   (o con VITE_API_PROXY=1), y es lo único seguro para una app pública.
+// - Directo: con VITE_TMDB_TOKEN en el build (solo para uso privado, la clave queda en el JavaScript).
+// El catálogo se guarda un día en el navegador.
 
 const TOKEN = import.meta.env.VITE_TMDB_TOKEN as string | undefined
 const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
+const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
 const CACHE_KEY = 'hv.liveCatalog.v1'
+const EXTRA_KEY = 'hv.extraTitles.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
 
-export const hasLiveData = Boolean(TOKEN)
+export const hasLiveData = Boolean(TOKEN) || PROXY
 
 async function tmdb<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams({ language: 'es-MX', ...params })
-  const res = await fetch(`https://api.themoviedb.org/3${path}?${qs}`, {
-    headers: { Authorization: `Bearer ${TOKEN}`, accept: 'application/json' },
-  })
+  const res = PROXY
+    ? await fetch(`/api/tmdb?${new URLSearchParams({ path })}&${qs}`)
+    : await fetch(`https://api.themoviedb.org/3${path}?${qs}`, { headers: { Authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
   if (!res.ok) throw new Error(`TMDB ${res.status} en ${path}`)
   return res.json() as Promise<T>
 }
@@ -53,9 +59,10 @@ interface Detail {
 interface Omdb { imdbRating?: string; imdbVotes?: string; Metascore?: string; Ratings?: { Source: string; Value: string }[] }
 
 async function omdb(imdbId: string) {
-  if (!OMDB) return {}
+  if (!OMDB && !PROXY) return {}
   try {
-    const res = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB}`)
+    const res = await fetch(PROXY ? `/api/omdb?i=${imdbId}` : `https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB}`)
+    if (!res.ok) return {}
     const d = (await res.json()) as Omdb
     const rt = d.Ratings?.find((r) => r.Source === 'Rotten Tomatoes')?.Value
     return {
@@ -138,4 +145,30 @@ export async function loadLiveCatalog(): Promise<Title[]> {
     // sin espacio en el navegador: se usa sin caché
   }
   return items
+}
+
+// Títulos guardados (Mi lista, listas anteriores) que ya no salen en el catálogo del día: se traen uno por uno
+export async function loadTitles(ids: string[]): Promise<Title[]> {
+  let cache: Record<string, Title> = {}
+  try {
+    cache = JSON.parse(localStorage.getItem(EXTRA_KEY) ?? '{}') as Record<string, Title>
+  } catch {
+    // caché ilegible: se vuelve a descargar
+  }
+  const missing = ids.filter((id) => !cache[id] && /^(movie|tv)-\d+$/.test(id))
+  for (let i = 0; i < missing.length; i += 6) {
+    const batch = await Promise.allSettled(
+      missing.slice(i, i + 6).map((id, j) => {
+        const [kind, n] = id.split('-')
+        return toTitle(kind as Kind, Number(n), i + j)
+      }),
+    )
+    batch.forEach((b) => b.status === 'fulfilled' && (cache[b.value.id] = b.value))
+  }
+  try {
+    localStorage.setItem(EXTRA_KEY, JSON.stringify(cache))
+  } catch {
+    // sin espacio: se vuelven a pedir la próxima vez
+  }
+  return ids.map((id) => cache[id]).filter(Boolean)
 }
