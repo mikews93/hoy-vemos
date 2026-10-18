@@ -64,7 +64,8 @@ La app se publica en Vercel. Las funciones `api/tmdb.ts` y `api/omdb.ts` hacen d
 
    No pongas `VITE_TMDB_TOKEN` ni `VITE_OMDB_KEY` en Vercel. Por si acaso, el build en Vercel las ignora y `.vercelignore` evita que `vercel deploy` suba tu `.env`.
 3. En Supabase → Authentication → URL Configuration, pon la URL de Vercel como **Site URL** y agrégala en **Redirect URLs** (para los correos de confirmación y de cambio de contraseña).
-4. Opcional: Authentication → Sign In / Providers → Email → desactivar "Confirm email" para que la cuenta quede lista al instante. El correo de Supabase sin SMTP propio tiene un límite bajo por hora.
+4. Entrar con Google: en Google Cloud Console → APIs y servicios → Credenciales, crea un "ID de cliente de OAuth" tipo "Aplicación web" con URI de redirección `https://aeplziigagwpkaqfxrfq.supabase.co/auth/v1/callback`. Copia el Client ID y el Client Secret en Supabase → Authentication → Sign In / Providers → Google.
+5. Opcional: Authentication → Sign In / Providers → Email → desactivar "Confirm email" para que la cuenta quede lista al instante. El correo de Supabase sin SMTP propio tiene un límite bajo por hora.
 
 Cada push a `main` se publica solo; cada PR tiene su vista previa.
 
