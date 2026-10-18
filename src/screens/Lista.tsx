@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useAuth, useStore } from '../lib/store'
-import { Icon, metaLine, scoreLabel } from '../components/ui'
+import { Icon, Rail, metaLine, scoreLabel } from '../components/ui'
+import { rewatchable } from '../lib/recommender'
 import type { Title } from '../data/types'
 
 // Lista compartida "por ver": se guarda con el botón + (en Hoy, la ficha o Pareja) y se marca como vista al verla
@@ -33,6 +34,7 @@ export default function Lista() {
   const pending = items.filter((t) => !s.watched.includes(t.id))
   const done = items.filter((t) => s.watched.includes(t.id))
   const past = s.history.slice(1, 8)
+  const again = rewatchable(s.pool, s.votes).slice(0, 12)
 
   return (
     <div className="screen">
@@ -55,6 +57,18 @@ export default function Lista() {
           <div className="panel" style={{ margin: '0 20px' }}>
             {done.map((t) => <Row key={t.id} t={t} />)}
           </div>
+        </>
+      )}
+
+      {again.length > 0 && (
+        <>
+          <div className="row-head">
+            <div>
+              <h2 className="h2">Para repetir</h2>
+              <p className="sub" style={{ margin: 0 }}>Ya las vieron y les encantaron, para las noches sin energía</p>
+            </div>
+          </div>
+          <Rail items={again} />
         </>
       )}
 

@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import type { Person, PersonId, Title, Votes } from '../data/types'
 import { DEMO_CATALOG } from '../data/demo'
 import { hasLiveData, loadLiveCatalog, loadMoreLive, loadTitles, type LiveCatalog } from '../data/live'
-import { buildDaily, type DailyPicks, type Settings } from './recommender'
+import { buildDaily, sharedPool, turnOf, type DailyPicks, type Settings } from './recommender'
 import { hasCloud, pendingInvite, supabase } from './supabase'
 
 // Estado de la app. Dos modos con la misma interfaz:
@@ -66,6 +66,9 @@ type VoteKind = keyof Votes
 
 interface Store extends Saved {
   catalog: Title[]
+  pool: Title[] // el catálogo sin lo que alguno de los dos vetó: de aquí sale todo lo compartido
+  keys: Record<PersonId, string> // cómo se guarda cada persona en los ajustes del hogar (vetos, turnos)
+  turn: PersonId | null // a quién le toca que pesen más sus gustos
   byId: Map<string, Title>
   loading: boolean
   more: More // trae otra página del catálogo (scroll infinito de Explorar)
@@ -171,12 +174,22 @@ function withVote(prev: Votes, id: string, kind: VoteKind): Votes {
 // Lo que vieron juntos cuenta como visto para los dos (así el recomendador no lo vuelve a sugerir)
 const withWatched = (v: Votes, watched: string[]): Votes => ({ ...v, seen: [...new Set([...v.seen, ...watched])] })
 
-function derived(saved: Saved, catalog: Title[]) {
+function derived(saved: Saved, catalog: Title[], keys: Record<PersonId, string>) {
   return {
     byId: new Map(catalog.map((t) => [t.id, t])),
+    pool: sharedPool(catalog, saved.settings),
+    keys,
+    turn: turnOf(saved.settings.nights, keys),
     votes: { a: withWatched(saved.votes.a, saved.watched), b: withWatched(saved.votes.b, saved.watched) },
     daily: saved.history[0]?.date === today() ? saved.history[0] : undefined,
   }
+}
+
+const LOCAL_KEYS: Record<PersonId, string> = { a: 'a', b: 'b' }
+
+const makeDaily = (saved: Saved, catalog: Title[], keys: Record<PersonId, string>, date = today()) => {
+  const d = derived(saved, catalog, keys)
+  return buildDaily(d.pool, d.votes, saved.settings, date, 8, d.turn)
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
@@ -203,14 +216,14 @@ function LocalStoreProvider({ children, guest = false }: { children: ReactNode; 
     if (loading || !saved.onboarded || !catalog.length) return
     const d = today()
     if (saved.history[0]?.date === d) return
-    const picks = buildDaily(catalog, derived(saved, catalog).votes, saved.settings, d)
+    const picks = makeDaily(saved, catalog, LOCAL_KEYS, d)
     setSaved((s) => ({ ...s, history: [picks, ...s.history].slice(0, 60) }))
   }, [loading, saved, catalog])
 
   const store = useMemo<Store>(() => {
     const who = (p?: PersonId) => p ?? saved.active
     const update = (fn: (s: Saved) => Saved) => setSaved(fn)
-    const d = derived(saved, catalog)
+    const d = derived(saved, catalog, LOCAL_KEYS)
     return {
       ...saved,
       ...d,
@@ -235,7 +248,7 @@ function LocalStoreProvider({ children, guest = false }: { children: ReactNode; 
       setSettings: (x) => update((s) => ({ ...s, settings: { ...s.settings, ...x } })),
       finishOnboarding: () => update((s) => ({ ...s, onboarded: true })),
       refreshDaily: () =>
-        update((s) => ({ ...s, history: [buildDaily(catalog, derived(s, catalog).votes, s.settings, today()), ...s.history.filter((h) => h.date !== today())] })),
+        update((s) => ({ ...s, history: [makeDaily(s, catalog, LOCAL_KEYS), ...s.history.filter((h) => h.date !== today())] })),
       joinHousehold: async () => {},
       signOut: () => {},
       reset: () => setSaved(guest ? guestInitial : initial),
@@ -266,6 +279,7 @@ export const useAuth = () => useContext(AuthCtx)
 
 interface CloudMeta {
   householdId?: string
+  partnerId?: string
   inviteCode?: string
   partnerJoined: boolean
   email?: string
@@ -341,7 +355,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
       watched: (list.data ?? []).filter((r) => r.watched_at).map((r) => r.title_id),
       history: (daily.data ?? []).map((r) => ({ date: r.date, together: r.together, reasons: r.reasons as Record<string, string> })),
     })
-    setMeta({ householdId: hid, inviteCode: household.data?.invite_code, partnerJoined: Boolean(partner), email })
+    setMeta({ householdId: hid, partnerId: partner?.id, inviteCode: household.data?.invite_code, partnerJoined: Boolean(partner), email })
     setSynced(true)
   }, [sb, userId, email])
 
@@ -385,21 +399,22 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
 
   // La lista del día es del hogar: la arma el primero de los dos que abra la app
   const loading = base.loading || !synced
+  const keys = useMemo<Record<PersonId, string>>(() => ({ a: userId, b: meta.partnerId ?? 'pareja' }), [userId, meta.partnerId])
   useEffect(() => {
     if (loading || !saved.onboarded || !catalog.length || !meta.householdId) return
     const d = today()
     if (saved.history[0]?.date === d) return
-    const picks = buildDaily(catalog, derived(saved, catalog).votes, saved.settings, d)
+    const picks = makeDaily(saved, catalog, keys, d)
     setSaved((s) => ({ ...s, history: [picks, ...s.history] }))
     void sb
       .from('daily_lists')
       .upsert({ household_id: meta.householdId, ...picks }, { onConflict: 'household_id,date', ignoreDuplicates: true })
       .then(refetch)
-  }, [loading, saved, catalog, meta.householdId, sb, refetch])
+  }, [loading, saved, catalog, meta.householdId, sb, refetch, keys])
 
   const store = useMemo<Store>(() => {
     const hid = meta.householdId
-    const d = derived(saved, catalog)
+    const d = derived(saved, catalog, keys)
     // Cambio optimista en pantalla, luego al servidor; si falla se recarga lo que hay allá
     const write = (fn: (s: Saved) => Saved, op: () => PromiseLike<{ error: unknown }>) => {
       setSaved(fn)
@@ -470,7 +485,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
       },
       finishOnboarding: () => write((s) => ({ ...s, onboarded: true }), () => sb.from('profiles').update({ onboarded: true }).eq('id', userId)),
       refreshDaily: () => {
-        const picks = buildDaily(catalog, d.votes, saved.settings, today())
+        const picks = makeDaily(saved, catalog, keys)
         write((s) => ({ ...s, history: [picks, ...s.history.filter((h) => h.date !== today())] }), () => sb.from('daily_lists').upsert({ household_id: hid, ...picks }, { onConflict: 'household_id,date' }))
       },
       joinHousehold: async (code) => {
@@ -488,7 +503,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
           return sb.from('profiles').update({ onboarded: false }).eq('id', userId)
         }),
     }
-  }, [saved, catalog, loading, base.more, meta, sb, userId, refetch, fetchAll, askLogin])
+  }, [saved, catalog, loading, base.more, meta, sb, userId, refetch, fetchAll, askLogin, keys])
 
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>
 }

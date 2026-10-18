@@ -1,4 +1,5 @@
 import type { Title, Kind, Provider } from './types'
+import type { MoodFilter } from '../lib/recommender'
 
 // Datos reales: TMDB (catálogo, pósters, tráileres, dónde ver) + OMDb (IMDb, Rotten Tomatoes, Metacritic).
 // Dos formas de conectarse:
@@ -17,6 +18,14 @@ const EXTRA_KEY = 'hv.extraTitles.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
 
 export const hasLiveData = Boolean(TOKEN) || PROXY
+// La búsqueda por ánimo con IA solo existe publicada en Vercel (api/mood.ts guarda la clave)
+export const hasMoodAi = PROXY
+
+export async function askMood(q: string): Promise<MoodFilter> {
+  const res = await fetch(`/api/mood?${new URLSearchParams({ q })}`)
+  if (!res.ok) throw new Error(`IA ${res.status}`)
+  return res.json() as Promise<MoodFilter>
+}
 
 async function tmdb<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams({ language: 'es-MX', ...params })

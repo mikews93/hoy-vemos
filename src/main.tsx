@@ -12,6 +12,7 @@ import Lista from './screens/Lista'
 import Perfil from './screens/Perfil'
 import Onboarding from './screens/Onboarding'
 import Login from './screens/Login'
+import Invitados from './screens/Invitados'
 import { NeedAccount } from './components/Account'
 import './styles.css'
 
@@ -43,7 +44,7 @@ function App() {
   const loc = useLocation()
   if (s.loading && s.cloud) return <div className="empty" style={{ marginTop: 80 }}>Trayendo lo mejor de hoy…</div>
   if (!s.onboarded && loc.pathname !== '/bienvenida') return <Navigate to="/bienvenida" replace />
-  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida'
+  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida' && loc.pathname !== '/invitados'
   return (
     <div className="app">
       <Routes>
@@ -54,6 +55,7 @@ function App() {
         <Route path="/lista" element={<Lista />} />
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/bienvenida" element={<Onboarding />} />
+        <Route path="/invitados" element={<Invitados />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showTabs && <TabBar />}
