@@ -4,6 +4,7 @@ import { useStore } from '../lib/store'
 import { PLATFORMS } from '../data/demo'
 import { RateGrid } from './Onboarding'
 import { Invite } from '../components/Invite'
+import { AccountButtons } from '../components/Account'
 import type { PersonId } from '../data/types'
 
 export default function Perfil() {
@@ -31,8 +32,18 @@ export default function Perfil() {
     <div className="screen">
       <div className="pad">
         <h1 className="h1">Perfil</h1>
-        <p className="sub">{s.cloud ? `${s.people.a.name} · ${s.email ?? ''}` : `Este dispositivo lo comparten ${s.people.a.name} y ${s.people.b.name}.`}</p>
+        <p className="sub">{s.cloud ? `${s.people.a.name} · ${s.email ?? ''}` : s.guest ? `${s.people.a.name}, estás usando Hoy Vemos sin cuenta.` : `Este dispositivo lo comparten ${s.people.a.name} y ${s.people.b.name}.`}</p>
       </div>
+
+      {s.guest && (
+        <>
+          <div className="row-head"><h2 className="h2">Tu cuenta</h2></div>
+          <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p className="sub" style={{ margin: 0 }}>Todo se guarda en este teléfono. Con una cuenta puedes invitar a tu pareja, elegir juntos y compartir Mi lista; lo que ya marcaste pasa a la cuenta.</p>
+            <AccountButtons reason="Crea tu cuenta para invitar a tu pareja." />
+          </div>
+        </>
+      )}
 
       {s.cloud && (
         <>
@@ -41,7 +52,7 @@ export default function Perfil() {
         </>
       )}
 
-      {s.cloud ? (
+      {s.cloud || s.guest ? (
         <div className="pad" style={{ marginTop: 14 }}>
           <button className="btn block" onClick={() => setRating(true)}>Calificar más favoritas</button>
         </div>

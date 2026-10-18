@@ -34,7 +34,7 @@ Sin OMDb se usa la nota de TMDB como aproximación de la de IMDb.
 
 ## Cuentas y pareja (Supabase)
 
-Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` la app pide entrar con correo y contraseña, y cada uno usa su propio teléfono:
+Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` cada uno usa su propio teléfono con su cuenta (correo y contraseña). La app se puede usar sin cuenta: Hoy, Explorar, las fichas y Mi lista funcionan guardando todo en el navegador, y solo se pide entrar para Modo pareja e invitar a la pareja. Al crear la cuenta o entrar, lo que hizo como invitado (votos, lista, plataformas y la lista de hoy) pasa a la cuenta.
 
 - Al crear la cuenta se crea un **hogar**. En Perfil → "Invita a tu pareja" se comparte un enlace (`#/unirse/CODIGO`) o el código de 6 letras; quien lo abre y crea su cuenta queda en el mismo hogar.
 - Votos, Mi lista, la lista del día y los ajustes (plataformas, nota mínima) se guardan en Supabase y llegan al otro teléfono al instante (Realtime). Si los dos le dan "me gusta" a lo mismo, el "¡Coinciden!" aparece aunque el otro haya votado desde su teléfono.
@@ -49,7 +49,7 @@ Toca **+** (en el destacado de Hoy, en la ficha o en las tarjetas de Pareja) par
 
 ## Publicación (Vercel)
 
-La app se publica en Vercel. Las funciones `api/tmdb.ts` y `api/omdb.ts` hacen de proxy, así las claves de TMDB y OMDb se quedan en el servidor y no aparecen en el JavaScript público (con GitHub Pages quedarían expuestas).
+La app se publica en Vercel. Las funciones `api/tmdb.ts` y `api/omdb.ts` hacen de proxy, así las claves de TMDB y OMDb se quedan en el servidor y no aparecen en el JavaScript público (con GitHub Pages quedarían expuestas). Solo atienden pedidos desde la propia app (mismo dominio), aceptan únicamente las rutas y parámetros que usa la app y limitan los pedidos por IP (`api/_lib/guard.ts`), para cuidar sobre todo el límite diario de OMDb.
 
 1. vercel.com → Add New → Project → importar `mikews93/hoy-vemos` (detecta Vite solo).
 2. Settings → Environment Variables:

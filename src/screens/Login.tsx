@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { pendingInvite, supabase } from '../lib/supabase'
+import { guestName, type LoginMode } from '../lib/store'
+import { Icon } from '../components/ui'
 
-// Entrar o crear cuenta con correo y contraseña. Si llegó con un enlace de invitación, al entrar queda unido a su pareja.
-export default function Login() {
+// Entrar o crear cuenta con correo y contraseña. Se abre encima de la app cuando algo necesita cuenta (reason dice qué).
+// Si llegó con un enlace de invitación, al entrar queda unido a su pareja. Lo que hizo sin cuenta pasa a la cuenta.
+export default function Login({ reason, initialMode, onClose }: { reason?: string; initialMode?: LoginMode; onClose: () => void }) {
   const invited = Boolean(pendingInvite.get())
-  const [mode, setMode] = useState<'in' | 'up'>(invited ? 'up' : 'in')
-  const [name, setName] = useState('')
+  const [mode, setMode] = useState<LoginMode>(invited ? 'up' : initialMode ?? 'up')
+  const [name, setName] = useState(guestName)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -39,13 +42,14 @@ export default function Login() {
 
   return (
     <div className="screen" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: 40 }}>
+      <button className="btn icon" aria-label="Seguir sin cuenta" onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', right: 16, borderRadius: 22, width: 44, height: 44 }}>{Icon.x(20)}</button>
       <form className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 16 }} onSubmit={submit}>
         <span className="eyebrow">Hoy Vemos</span>
         <h1 className="h1" style={{ fontSize: 36 }}>{invited ? 'Te invitaron a elegir juntos' : mode === 'in' ? 'Hola de nuevo' : 'Crea tu cuenta'}</h1>
         <p className="sub" style={{ margin: 0 }}>
           {invited
             ? 'Crea tu cuenta (o entra si ya tienes una) y quedarás conectado con tu pareja: verán las mismas listas y sus coincidencias.'
-            : 'Cada uno con su cuenta en su teléfono. Luego invitas a tu pareja desde Perfil.'}
+            : `${reason ? `${reason} ` : ''}Cada uno con su cuenta en su teléfono; lo que ya marcaste aquí pasa a tu cuenta.`}
         </p>
         {mode === 'up' && (
           <label className="field">Tu nombre<input className="input" value={name} onChange={(e) => setName(e.target.value)} autoComplete="given-name" required /></label>
