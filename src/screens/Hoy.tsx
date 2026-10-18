@@ -60,6 +60,9 @@ export default function Hoy() {
         </p>
       </div>
 
+      {s.cloud && !s.partnerJoined && (
+        <div className="banner">Esta lista es solo con tus gustos. <Link to="/perfil">Invita a tu pareja</Link> para que se arme con los de los dos.</div>
+      )}
       {!s.live && <div className="banner">Modo demostración: catálogo de ejemplo con notas aproximadas. Con las claves de TMDB y OMDb se usan datos reales.</div>}
 
       <div className="chips" role="group" aria-label="Filtrar">
@@ -95,7 +98,7 @@ export default function Hoy() {
               <button className="btn icon" aria-label={s.myList.includes(hero.id) ? 'Quitar de mi lista' : 'Agregar a mi lista'} aria-pressed={s.myList.includes(hero.id)} onClick={() => s.toggleList(hero.id)}>
                 {s.myList.includes(hero.id) ? Icon.check() : Icon.plus()}
               </button>
-              <button className="btn icon" aria-label="Ya la vimos" onClick={() => { s.vote(hero.id, 'seen', 'a'); s.vote(hero.id, 'seen', 'b') }}>{Icon.check()}</button>
+              <button className="btn icon" aria-label="Ya la vimos" onClick={() => s.markWatched(hero.id, true)}>{Icon.check()}</button>
             </div>
           </div>
         </div>

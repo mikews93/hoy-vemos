@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { buildDeck } from '../lib/recommender'
@@ -20,6 +20,18 @@ export default function Pareja() {
   const next = deck[idx + 1]
   const matchCount = s.votes.a.liked.filter((id) => s.votes.b.liked.includes(id)).length
   const partnerVotes = s.votes[partner].liked.length + s.votes[partner].passed.length + s.votes[partner].disliked.length
+
+  // En la nube la pareja vota desde su teléfono: si le da "me gusta" a algo que ya te gustó, la coincidencia aparece aquí al instante
+  const partnerLiked = s.votes[partner].liked
+  const prevPartner = useRef<string[] | null>(null)
+  useEffect(() => {
+    const prev = prevPartner.current
+    prevPartner.current = partnerLiked
+    if (!s.cloud || !prev) return
+    const fresh = partnerLiked.find((id) => !prev.includes(id) && s.votes[me].liked.includes(id))
+    const t = fresh && s.byId.get(fresh)
+    if (t) setMatch(t)
+  }, [partnerLiked]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = (kind: 'liked' | 'passed' | 'seen') => {
     if (!card) return
@@ -53,6 +65,7 @@ export default function Pareja() {
         </span>
       </div>
 
+      {!s.cloud && (
       <div className="chips" role="group" aria-label="¿Quién está eligiendo?">
         {(['a', 'b'] as PersonId[]).map((p) => (
           <button key={p} className={`chip${me === p ? (p === 'a' ? ' on' : ' coral on') : ''}`} aria-pressed={me === p} onClick={() => { s.setActive(p); setIdx(0) }}>
@@ -60,6 +73,10 @@ export default function Pareja() {
           </button>
         ))}
       </div>
+      )}
+      {s.cloud && !s.partnerJoined && (
+        <div className="banner">Invita a tu pareja desde <Link to="/perfil">Perfil</Link> para ver sus coincidencias.</div>
+      )}
 
       <div className="deck">
         {card ? (
@@ -94,6 +111,10 @@ export default function Pareja() {
                 <div style={{ display: 'flex', gap: 10 }}>
                   {card.trailer && <a href={card.trailer} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 700 }}>Ver tráiler</a>}
                   <Link to={`/titulo/${card.id}`} style={{ fontSize: 14, fontWeight: 700 }}>Ver ficha</Link>
+                  <button onPointerDown={(e) => e.stopPropagation()} onClick={() => s.toggleList(card.id)} aria-pressed={s.myList.includes(card.id)}
+                    style={{ background: 'none', border: 0, padding: 0, color: 'var(--gold)', font: 'inherit', fontSize: 14, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
+                    {s.myList.includes(card.id) ? 'En Mi lista' : '+ Mi lista'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -102,9 +123,11 @@ export default function Pareja() {
           <div className="swipe-card" style={{ background: 'var(--surface)', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: 32, gap: 12 }}>
             <span style={{ fontFamily: 'var(--display)', fontSize: 26, fontWeight: 800 }}>Ya votaste todo por hoy</span>
             <span style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.45 }}>
-              Bajen la nota mínima en Perfil o pásale el teléfono a {s.people[partner].name} para que vote.
+              {s.cloud
+                ? `Bajen la nota mínima en Perfil. Cuando ${s.people[partner].name} vote desde su teléfono, sus coincidencias aparecen aquí.`
+                : `Bajen la nota mínima en Perfil o pásale el teléfono a ${s.people[partner].name} para que vote.`}
             </span>
-            <button className="btn primary" onClick={() => { s.setActive(partner); setIdx(0) }}>Que elija {s.people[partner].name}</button>
+            {!s.cloud && <button className="btn primary" onClick={() => { s.setActive(partner); setIdx(0) }}>Que elija {s.people[partner].name}</button>}
           </div>
         )}
       </div>
@@ -131,6 +154,9 @@ export default function Pareja() {
           </div>
           <span style={{ fontSize: 14, color: 'var(--text-2)' }}>{match.title} · {scoreLabel(match)}{match.providers[0] ? ` · ${match.providers[0].name}` : ''}</span>
           <Link to={`/titulo/${match.id}`} className="btn primary block" style={{ maxWidth: 360, height: 52 }}>Verla esta noche</Link>
+          <button className="btn block" style={{ maxWidth: 360, height: 52 }} aria-pressed={s.myList.includes(match.id)} onClick={() => !s.myList.includes(match.id) && s.toggleList(match.id)}>
+            {s.myList.includes(match.id) ? <>{Icon.check(18)}Guardada en Mi lista</> : <>{Icon.plus(18)}Guardar en Mi lista</>}
+          </button>
           <button className="btn block" style={{ maxWidth: 360, height: 52, background: 'transparent' }} onClick={() => setMatch(null)}>Seguir eligiendo</button>
         </div>
       )}

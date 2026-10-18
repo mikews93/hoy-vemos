@@ -1,5 +1,5 @@
 // Service worker mínimo: guarda la app para abrirla sin conexión.
-const CACHE = 'hoyvemos-v1';
+const CACHE = 'hoyvemos-v2';
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg'])));
   self.skipWaiting();
