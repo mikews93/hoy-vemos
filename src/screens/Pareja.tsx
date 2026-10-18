@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { buildDeck } from '../lib/recommender'
 import { Icon, metaLine, scoreLabel } from '../components/ui'
+import { TrailerModal } from '../components/Trailer'
 import type { PersonId, Title } from '../data/types'
 
 export default function Pareja() {
@@ -14,6 +15,7 @@ export default function Pareja() {
   const [idx, setIdx] = useState(0)
   const [match, setMatch] = useState<Title | null>(null)
   const [drag, setDrag] = useState(0)
+  const [trailer, setTrailer] = useState<Title | null>(null)
   const start = useRef<number | null>(null)
 
   const card = deck[idx]
@@ -55,6 +57,7 @@ export default function Pareja() {
 
   return (
     <div className="screen" style={{ paddingBottom: 0 }}>
+      {trailer?.trailer && <TrailerModal url={trailer.trailer} title={trailer.title} onClose={() => setTrailer(null)} />}
       <div className="pad" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 className="h2" style={{ fontSize: 26, fontWeight: 800 }}>Elegir juntos</h1>
@@ -109,7 +112,12 @@ export default function Pareja() {
                 <span style={{ fontSize: 13, color: 'var(--text-2)' }}>{metaLine(card)} · {card.year} · {card.genres.slice(0, 2).join(', ')}</span>
                 <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{card.overview}</p>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  {card.trailer && <a href={card.trailer} target="_blank" rel="noreferrer" style={{ fontSize: 14, fontWeight: 700 }}>Ver tráiler</a>}
+                  {card.trailer && (
+                    <button onPointerDown={(e) => e.stopPropagation()} onClick={() => setTrailer(card)}
+                      style={{ background: 'none', border: 0, padding: 0, color: 'var(--gold)', font: 'inherit', fontSize: 14, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
+                      Ver tráiler
+                    </button>
+                  )}
                   <Link to={`/titulo/${card.id}`} style={{ fontSize: 14, fontWeight: 700 }}>Ver ficha</Link>
                   <button onPointerDown={(e) => e.stopPropagation()} onClick={() => s.toggleList(card.id)} aria-pressed={s.myList.includes(card.id)}
                     style={{ background: 'none', border: 0, padding: 0, color: 'var(--gold)', font: 'inherit', fontSize: 14, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}>
