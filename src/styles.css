@@ -114,3 +114,4 @@ label.field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; 
 @media (min-width: 521px) {
   .hero { height: 520px; }
 }
+.more-status { padding: 22px 20px 8px; text-align: center; color: var(--muted); font-size: 13px; min-height: 20px; }

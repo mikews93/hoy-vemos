@@ -5,14 +5,14 @@ import type { Title, Kind, Provider } from './types'
 // - Proxy (Vercel): /api/tmdb y /api/omdb guardan las claves en el servidor. Se activa solo al publicar en Vercel
 //   (o con VITE_API_PROXY=1), y es lo único seguro para una app pública.
 // - Directo: con VITE_TMDB_TOKEN en el build (solo para uso privado, la clave queda en el JavaScript).
-// El catálogo se guarda un día en el navegador.
+// El catálogo se guarda un día en el navegador y crece por páginas al bajar en Explorar.
 
 const TOKEN = import.meta.env.VITE_TMDB_TOKEN as string | undefined
 const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
 const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
-const CACHE_KEY = 'hv.liveCatalog.v1'
+const CACHE_KEY = 'hv.liveCatalog.v2'
 const EXTRA_KEY = 'hv.extraTitles.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
 
@@ -27,7 +27,7 @@ async function tmdb<T>(path: string, params: Record<string, string> = {}): Promi
   return res.json() as Promise<T>
 }
 
-interface Discover { results: { id: number }[] }
+interface Discover { results: { id: number }[]; total_pages?: number }
 
 interface Detail {
   id: number
@@ -114,37 +114,82 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   }
 }
 
-export async function loadLiveCatalog(): Promise<Title[]> {
+// Las cuatro listas de TMDB de las que sale el catálogo. Cada "página" trae hasta 20 de cada una.
+const LISTS: [Kind, Record<string, string>][] = [
+  ['movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '3000', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
+  ['movie', { sort_by: 'popularity.desc', 'vote_average.gte': '7', 'vote_count.gte': '500', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
+  ['tv', { sort_by: 'vote_average.desc', 'vote_count.gte': '1000', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
+  ['tv', { sort_by: 'popularity.desc', 'vote_average.gte': '7', 'vote_count.gte': '300', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
+]
+// Tope de páginas por lista: cada página nueva cuesta hasta ~80 consultas a OMDb (límite diario del plan gratis)
+export const MAX_PAGES = 10
+
+export interface LiveCatalog {
+  items: Title[]
+  pages: number // páginas ya traídas de cada lista
+  done: boolean // ya no hay más páginas
+}
+
+interface Cached extends LiveCatalog {
+  at: number
+}
+
+function readCache(): Cached | null {
   try {
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as { at: number; items: Title[] } | null
-    if (cached && Date.now() - cached.at < 24 * 3600 * 1000) return cached.items
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) ?? 'null') as Cached | null
+    if (c && Date.now() - c.at < 24 * 3600 * 1000) return { ...c, pages: c.pages ?? 1, done: c.done ?? false }
   } catch {
     // caché ilegible: se vuelve a descargar
   }
-  const lists: [Kind, Record<string, string>][] = [
-    ['movie', { sort_by: 'vote_average.desc', 'vote_count.gte': '3000', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
-    ['movie', { sort_by: 'popularity.desc', 'vote_average.gte': '7', 'vote_count.gte': '500', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
-    ['tv', { sort_by: 'vote_average.desc', 'vote_count.gte': '1000', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
-    ['tv', { sort_by: 'popularity.desc', 'vote_average.gte': '7', 'vote_count.gte': '300', watch_region: REGION, with_watch_monetization_types: 'flatrate' }],
-  ]
+  return null
+}
+
+function writeCache(c: Cached) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(c))
+  } catch {
+    // sin espacio en el navegador: se usa sin caché
+  }
+}
+
+// Trae la página `page` de cada lista y arma los títulos que aún no están en `known`
+async function fetchPage(page: number, known: Set<string>, offset: number): Promise<{ items: Title[]; last: boolean }> {
   const ids = new Map<string, [Kind, number]>()
-  for (const [kind, params] of lists) {
-    const page = await tmdb<Discover>(`/discover/${kind}`, params)
-    page.results.slice(0, 16).forEach((r) => ids.set(`${kind}-${r.id}`, [kind, r.id]))
+  let last = true
+  for (const [kind, params] of LISTS) {
+    const res = await tmdb<Discover>(`/discover/${kind}`, { ...params, page: String(page) })
+    if (page < (res.total_pages ?? 1)) last = false
+    res.results.forEach((r) => !known.has(`${kind}-${r.id}`) && ids.set(`${kind}-${r.id}`, [kind, r.id]))
   }
   const entries = [...ids.values()]
   const items: Title[] = []
   // de a 6 en paralelo para no saturar las APIs
   for (let i = 0; i < entries.length; i += 6) {
-    const batch = await Promise.allSettled(entries.slice(i, i + 6).map(([k, id], j) => toTitle(k, id, i + j)))
+    const batch = await Promise.allSettled(entries.slice(i, i + 6).map(([k, id], j) => toTitle(k, id, offset + i + j)))
     batch.forEach((b) => b.status === 'fulfilled' && items.push(b.value))
   }
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), items }))
-  } catch {
-    // sin espacio en el navegador: se usa sin caché
-  }
-  return items
+  return { items, last }
+}
+
+// Primera página de cada lista; el resto llega con loadMoreLive al bajar en Explorar. Se guarda un día.
+export async function loadLiveCatalog(): Promise<LiveCatalog> {
+  const cached = readCache()
+  if (cached) return cached
+  const { items, last } = await fetchPage(1, new Set(), 0)
+  const c: Cached = { at: Date.now(), items, pages: 1, done: last }
+  writeCache(c)
+  return c
+}
+
+// Siguiente página: se suma al catálogo del día (y a su caché) para que la lista diaria también la aproveche
+export async function loadMoreLive(current: LiveCatalog): Promise<LiveCatalog> {
+  if (current.done) return current
+  const page = current.pages + 1
+  const { items, last } = await fetchPage(page, new Set(current.items.map((t) => t.id)), current.items.length)
+  const next: LiveCatalog = { items: [...current.items, ...items], pages: page, done: last || page >= MAX_PAGES }
+  const at = readCache()?.at ?? Date.now()
+  writeCache({ ...next, at })
+  return next
 }
 
 // Títulos guardados (Mi lista, listas anteriores) que ya no salen en el catálogo del día: se traen uno por uno
