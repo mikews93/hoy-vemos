@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useStore } from '../lib/store'
+import { useAuth, useStore } from '../lib/store'
 import { Icon, metaLine, scoreLabel } from '../components/ui'
 import type { Title } from '../data/types'
 
@@ -28,6 +28,7 @@ function Row({ t }: { t: Title }) {
 
 export default function Lista() {
   const s = useStore()
+  const { askLogin } = useAuth()
   const items = s.myList.map((id) => s.byId.get(id)).filter(Boolean) as Title[]
   const pending = items.filter((t) => !s.watched.includes(t.id))
   const done = items.filter((t) => s.watched.includes(t.id))
@@ -39,6 +40,9 @@ export default function Lista() {
         <h1 className="h1">Mi lista</h1>
         <p className="sub">{pending.length ? `${pending.length} por ver${s.cloud && s.partnerJoined ? `, compartida con ${s.people.b.name}` : ''}.` : 'Toca + en cualquier título (en Hoy, en su ficha o en Pareja) para guardarlo aquí.'}</p>
       </div>
+      {s.guest && pending.length > 0 && (
+        <div className="banner">Tu lista se guarda en este teléfono. <button className="link" onClick={() => askLogin({ reason: 'Crea tu cuenta para compartir tu lista con tu pareja.', mode: 'up' })}>Crea una cuenta</button> para compartirla con tu pareja.</div>
+      )}
       {pending.length > 0 && (
         <div className="panel" style={{ margin: '18px 20px 0' }}>
           {pending.map((t) => <Row key={t.id} t={t} />)}

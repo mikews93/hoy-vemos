@@ -48,7 +48,7 @@ export default function Hoy() {
         </div>
         <Link to="/perfil" aria-label="Cambiar persona" style={{ display: 'flex', textDecoration: 'none' }}>
           <span className="avatar a">{s.people.a.name[0]}</span>
-          <span className="avatar b" style={{ marginLeft: -10 }}>{s.people.b.name[0]}</span>
+          {!s.guest && <span className="avatar b" style={{ marginLeft: -10 }}>{s.people.b.name[0]}</span>}
         </Link>
       </div>
 
@@ -60,6 +60,9 @@ export default function Hoy() {
         </p>
       </div>
 
+      {s.guest && (
+        <div className="banner">Esta lista es solo con tus gustos. <Link to="/pareja">Elige con tu pareja</Link> creando una cuenta.</div>
+      )}
       {s.cloud && !s.partnerJoined && (
         <div className="banner">Esta lista es solo con tus gustos. <Link to="/perfil">Invita a tu pareja</Link> para que se arme con los de los dos.</div>
       )}
