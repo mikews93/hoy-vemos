@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Icon, Poster, metaLine } from '../components/ui'
+import { TrailerModal } from '../components/Trailer'
 import { REGION } from '../data/live'
 import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
@@ -26,6 +28,7 @@ export default function Ficha() {
   const nav = useNavigate()
   const s = useStore()
   const t = s.byId.get(id)
+  const [showTrailer, setShowTrailer] = useState(false)
   if (!t) return <div className="empty" style={{ marginTop: 80 }}>No encontramos este título. <Link to="/">Volver al inicio</Link></div>
 
   const v = s.votes[s.active]
@@ -40,12 +43,13 @@ export default function Ficha() {
 
   return (
     <div style={{ paddingBottom: 24 }}>
+      {showTrailer && t.trailer && <TrailerModal url={t.trailer} title={t.title} onClose={() => setShowTrailer(false)} />}
       <div style={{ height: 300, background: t.color, position: 'relative', overflow: 'hidden' }}>
         {t.backdrop && <img src={t.backdrop} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 160, background: 'linear-gradient(to top, var(--bg), rgba(15,14,19,0))' }} />
         <button className="btn icon" aria-label="Volver" onClick={() => nav(-1)} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', left: 16, borderRadius: 22, width: 44, height: 44, background: 'var(--bg)' }}>{Icon.back()}</button>
         {t.trailer && (
-          <a href={t.trailer} target="_blank" rel="noreferrer" aria-label="Ver tráiler" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 64, height: 64, borderRadius: 32, background: 'var(--text)', color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon.play(26)}</a>
+          <button onClick={() => setShowTrailer(true)} aria-label="Ver tráiler" style={{ border: 0, cursor: 'pointer', position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 64, height: 64, borderRadius: 32, background: 'var(--text)', color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon.play(26)}</button>
         )}
       </div>
 

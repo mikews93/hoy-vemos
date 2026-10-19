@@ -6,6 +6,7 @@ import { fitsTonight, useTonight } from '../lib/tonight'
 import { notifyArrivals, trackArrivals } from '../lib/arrivals'
 import { DecideSheet, TonightBar } from '../components/Tonight'
 import { Icon, Rail, Section, metaLine, scoreLabel } from '../components/ui'
+import { TrailerModal } from '../components/Trailer'
 import type { Title } from '../data/types'
 
 type Filter = 'all' | 'movie' | 'tv'
@@ -15,6 +16,7 @@ const passes = (t: Title, f: Filter) => f === 'all' || t.kind === f
 export default function Hoy() {
   const s = useStore()
   const [filter, setFilter] = useState<Filter>('all')
+  const [trailer, setTrailer] = useState<Title | null>(null)
   const [deciding, setDeciding] = useState(false)
   const [tonight] = useTonight()
   const me = s.people[s.active]
@@ -57,6 +59,7 @@ export default function Hoy() {
 
   return (
     <div className="screen">
+      {trailer?.trailer && <TrailerModal url={trailer.trailer} title={trailer.title} onClose={() => setTrailer(null)} />}
       <div className="pad" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500 }}>{dateLabel}</div>
@@ -116,7 +119,7 @@ export default function Hoy() {
             <span style={{ fontSize: 14, lineHeight: 1.4 }}>{s.daily?.reasons[hero.id]}</span>
             <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
               {hero.trailer ? (
-                <a className="btn primary" style={{ flex: 1 }} href={hero.trailer} target="_blank" rel="noreferrer">{Icon.play()}Ver tráiler</a>
+                <button className="btn primary" style={{ flex: 1 }} onClick={() => setTrailer(hero)}>{Icon.play()}Ver tráiler</button>
               ) : (
                 <Link className="btn primary" style={{ flex: 1 }} to={`/titulo/${hero.id}`}>Ver ficha</Link>
               )}
