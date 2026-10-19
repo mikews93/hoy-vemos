@@ -4,11 +4,23 @@ import { useStore } from '../lib/store'
 import { Icon, Poster, metaLine } from '../components/ui'
 import { TrailerModal } from '../components/Trailer'
 import { REGION } from '../data/live'
-import type { Title } from '../data/types'
+import { learn, tasteFor } from '../lib/recommender'
+import type { PersonId, Title, Votes } from '../data/types'
 
-function reason(t: Title, liked: Title[]): { names: string; many: boolean } | null {
+// Por qué le puede gustar a una persona: primero algo que ya le gustó y se parece; si no, su gusto más fuerte que el título tiene
+function reasonFor(t: Title, v: Votes, byId: Map<string, Title>, catalog: Title[]): string | null {
+  const liked = v.liked.map((x) => byId.get(x)).filter(Boolean) as Title[]
   const hits = liked.filter((l) => l.id !== t.id && (l.genres.some((g) => t.genres.includes(g)) || l.tags.some((x) => t.tags.includes(x)))).slice(0, 2)
-  return hits.length ? { names: hits.map((h) => h.title).join(' y '), many: hits.length > 1 } : null
+  if (hits.length) return `porque le ${hits.length > 1 ? 'gustaron' : 'gustó'} ${hits.map((h) => h.title).join(' y ')}`
+  const taste = tasteFor(t, learn(v, catalog))
+  return taste ? `por lo mucho que le gusta ${/^[A-ZÁÉÍÓÚ]/.test(taste) ? `el género ${taste.toLowerCase()}` : `«${taste}»`}` : null
+}
+
+function coupleWhy(people: { name: string; why: string | null }[]): string | null {
+  const known = people.filter((p) => p.why)
+  if (!known.length) return null
+  if (known.length === 2) return `Les puede gustar a los dos: a ${known[0].name} ${known[0].why}, y a ${known[1].name} ${known[1].why}.`
+  return `A ${known[0].name} le puede gustar ${known[0].why}.`
 }
 
 export default function Ficha() {
@@ -20,11 +32,9 @@ export default function Ficha() {
   if (!t) return <div className="empty" style={{ marginTop: 80 }}>No encontramos este título. <Link to="/">Volver al inicio</Link></div>
 
   const v = s.votes[s.active]
-  const liked = v.liked.map((x) => s.byId.get(x)).filter(Boolean) as Title[]
-  const partner = s.active === 'a' ? 'b' : 'a'
-  const partnerLiked = (s.votes[partner].liked.map((x) => s.byId.get(x)).filter(Boolean) as Title[])
-  const why = reason(t, liked)
-  const whyPartner = reason(t, partnerLiked)
+  const partner: PersonId = s.active === 'a' ? 'b' : 'a'
+  const who = s.guest ? [s.active] : [s.active, partner]
+  const why = coupleWhy(who.map((p) => ({ name: s.people[p].name, why: reasonFor(t, s.votes[p], s.byId, s.catalog) })))
   const isSeen = v.seen.includes(t.id)
   const isLiked = v.liked.includes(t.id)
   const flat = t.providers.filter((p) => p.kind === 'flatrate')
@@ -58,13 +68,10 @@ export default function Ficha() {
         <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>Metacritic</span><b>{t.ratings.mc ?? '–'}</b><span className="note">de 100</span></div>
       </div>
 
-      {(why || whyPartner) && (
+      {why && (
         <div style={{ margin: '16px 20px 0', padding: '14px 16px', borderRadius: 16, background: '#2A1A16', border: '1px solid #5A3027', display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 14, lineHeight: 1.45 }}>
           <span style={{ color: 'var(--coral)', flexShrink: 0 }}>{Icon.star()}</span>
-          <span>
-            {why && <>Te la recomendamos porque te {why.many ? 'gustaron' : 'gustó'} <b>{why.names}</b>{whyPartner ? ', ' : '.'}</>}
-            {whyPartner && <>{why ? 'y' : 'Porque'} a {s.people[partner].name} le {whyPartner.many ? 'gustaron' : 'gustó'} <b>{whyPartner.names}</b>.</>}
-          </span>
+          <span>{why}</span>
         </div>
       )}
 
