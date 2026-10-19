@@ -5,9 +5,18 @@ import type { Title, Votes, PersonId } from '../data/types'
 
 export type Weights = Map<string, number>
 
+// Una noche elegida: cuánto le gustaba a cada uno lo que vieron (0 a 1), por la clave de cada persona
+export interface Night {
+  date: string
+  id: string
+  sat: Record<string, number>
+}
+
 export interface Settings {
   minImdb: number
   platforms: string[] // vacío = todas
+  vetoes?: Record<string, string[]> // géneros que cada persona nunca quiere ver, por su clave
+  nights?: Night[] // las últimas noches elegidas, para repartir los turnos
 }
 
 const key = (k: 'g' | 't', v: string) => `${k}:${v}`
@@ -34,7 +43,7 @@ export function affinity(t: Title, w: Weights): number {
   return s / Math.sqrt(t.genres.length + t.tags.length || 1)
 }
 
-const quality = (t: Title) => ((t.ratings.imdb ?? 0) - 7) * 1.2
+export const quality = (t: Title) => ((t.ratings.imdb ?? 0) - 7) * 1.2
 
 // Ruido estable por día para que la lista cambie cada día sin ser aleatoria al recargar
 function dayNoise(id: string, day: string): number {
@@ -52,6 +61,40 @@ export function eligible(t: Title, s: Settings, votes: Votes[]): boolean {
   if ((t.ratings.imdb ?? 0) < s.minImdb) return false
   if (!available(t, s)) return false
   return !votes.some((v) => v.seen.includes(t.id) || v.disliked.includes(t.id))
+}
+
+// Vetos: lo que alguno de los dos nunca quiere ver no sale en nada de lo compartido
+export const isVetoed = (t: Title, genres: string[]) => t.genres.some((g) => genres.includes(g))
+export const allVetoes = (s: Settings) => [...new Set(Object.values(s.vetoes ?? {}).flat())]
+export const sharedPool = (catalog: Title[], s: Settings) => {
+  const v = allVetoes(s)
+  return v.length ? catalog.filter((t) => !isVetoed(t, v)) : catalog
+}
+
+// Cuánto le gustaba a alguien lo que vieron, de 0 a 1: qué parte del catálogo le gusta menos que eso.
+// Se usa la posición y no la afinidad cruda porque la afinidad crece con cada voto y no se compara entre dos personas.
+export function satisfaction(t: Title, w: Weights, catalog: Title[]): number {
+  const mine = affinity(t, w)
+  return catalog.filter((x) => affinity(x, w) < mine).length / Math.max(catalog.length - 1, 1)
+}
+
+// Turnos justos: si en las últimas noches uno disfrutó bastante menos que el otro, ahora pesan más sus gustos
+export function turnOf(nights: Night[] = [], keys: Record<PersonId, string>): PersonId | null {
+  let gap = 0
+  nights.slice(-6).forEach((n) => {
+    const a = n.sat[keys.a]
+    const b = n.sat[keys.b]
+    if (a != null && b != null) gap += a - b
+  })
+  return gap > 0.4 ? 'b' : gap < -0.4 ? 'a' : null
+}
+
+// Puntaje para los dos: lo que les gusta a ambos (el mínimo) pesa más que el promedio, más el turno de quien cedió
+export function coupleScore(t: Title, wa: Weights, wb: Weights, turn: PersonId | null = null): number {
+  const a = affinity(t, wa)
+  const b = affinity(t, wb)
+  const lean = turn === 'a' ? a * 0.5 : turn === 'b' ? b * 0.5 : 0
+  return Math.min(a, b) * 0.6 + (a + b) * 0.2 + lean + quality(t)
 }
 
 export interface Scored {
@@ -80,7 +123,7 @@ export interface DailyPicks {
 }
 
 // Arma la lista del día para la pareja: prioriza lo que les gusta a los dos (el mínimo de ambas afinidades)
-export function buildDaily(catalog: Title[], votes: Record<PersonId, Votes>, s: Settings, date: string, size = 8): DailyPicks {
+export function buildDaily(catalog: Title[], votes: Record<PersonId, Votes>, s: Settings, date: string, size = 8, turn: PersonId | null = null): DailyPicks {
   const wa = learn(votes.a, catalog)
   const wb = learn(votes.b, catalog)
   const byId = new Map(catalog.map((t) => [t.id, t]))
@@ -89,10 +132,8 @@ export function buildDaily(catalog: Title[], votes: Record<PersonId, Votes>, s: 
   const pool = catalog.filter((t) => eligible(t, s, [votes.a, votes.b]))
   const scored = pool
     .map((t) => {
-      const a = affinity(t, wa)
-      const b = affinity(t, wb)
       const bothLiked = votes.a.liked.includes(t.id) && votes.b.liked.includes(t.id) ? 3 : 0
-      return { t, score: Math.min(a, b) * 0.6 + (a + b) * 0.2 + quality(t) + bothLiked + dayNoise(t.id, date) * 1.5 }
+      return { t, score: coupleScore(t, wa, wb, turn) + bothLiked + dayNoise(t.id, date) * 1.5 }
     })
     .sort((x, y) => y.score - x.score)
     .slice(0, size)
@@ -189,5 +230,98 @@ export function moodSearch(catalog: Title[], q: string, s: Settings, votes: Vote
     .filter((x) => x.s >= 1)
     .sort((a, b) => b.s - a.s)
     .slice(0, 9)
+    .map(({ t }) => t)
+}
+
+// Todo el catálogo que pasa los filtros, de lo que más les puede gustar a los dos a lo menos (fondo de Explorar)
+export function browseAll(catalog: Title[], votes: Record<PersonId, Votes>, s: Settings, exclude: string[]): Title[] {
+  const all = [votes.a, votes.b]
+  const wa = learn(votes.a, catalog)
+  const wb = learn(votes.b, catalog)
+  return catalog
+    .filter((t) => eligible(t, s, all) && !exclude.includes(t.id))
+    .map((t) => ({ t, s: (affinity(t, wa) + affinity(t, wb)) * 0.5 + quality(t) }))
+    .sort((a, b) => b.s - a.s)
+    .map(({ t }) => t)
+}
+
+export type Who = 'both' | PersonId
+
+// "Decide tú": ordena lo que pueden ver esta noche, de lo que más les va a gustar a lo menos.
+// Suma puntos a lo que ya eligieron de alguna forma (coincidencias, lista de hoy, Mi lista).
+// Nunca elige fuera de sus gustos ni empuja lo de moda: el error del "Surprise Me" de Netflix.
+export function decideFor(
+  pool: Title[],
+  votes: Record<PersonId, Votes>,
+  s: Settings,
+  opts: { who: Who; turn: PersonId | null; boost: Record<string, number>; fits: (t: Title) => boolean; rewatch?: boolean },
+): Title[] {
+  const wa = learn(votes.a, pool)
+  const wb = learn(votes.b, pool)
+  const people = opts.who === 'both' ? [votes.a, votes.b] : [votes[opts.who]]
+  const candidates = opts.rewatch
+    ? rewatchable(pool, votes).filter((t) => available(t, s))
+    : pool.filter((t) => eligible(t, s, people) && !people.some((v) => v.passed.includes(t.id)))
+  const score = (t: Title) =>
+    opts.who === 'both' ? coupleScore(t, wa, wb, opts.turn) : affinity(t, opts.who === 'a' ? wa : wb) + quality(t)
+  return candidates
+    .filter(opts.fits)
+    .map((t) => ({ t, s: score(t) + (opts.boost[t.id] ?? 0) }))
+    .sort((x, y) => y.s - x.s)
+    .slice(0, 12)
+    .map(({ t }) => t)
+}
+
+// "Para repetir": lo que ya vieron y le encantó a alguno, para las noches sin energía para algo nuevo
+export function rewatchable(catalog: Title[], votes: Record<PersonId, Votes>): Title[] {
+  const liked = (id: string) => Number(votes.a.liked.includes(id)) + Number(votes.b.liked.includes(id))
+  return catalog
+    .filter((t) => liked(t.id) > 0 && (votes.a.seen.includes(t.id) || votes.b.seen.includes(t.id)))
+    .filter((t) => !votes.a.disliked.includes(t.id) && !votes.b.disliked.includes(t.id))
+    .sort((x, y) => liked(y.id) - liked(x.id) || (y.ratings.imdb ?? 0) - (x.ratings.imdb ?? 0))
+}
+
+// El gusto de una persona que mejor explica por qué le puede gustar un título (un género o una etiqueta)
+export function tasteFor(t: Title, w: Weights): string | undefined {
+  // las etiquetas pesan un poco más porque dicen más que un género ("viajes en el tiempo" frente a "Drama")
+  const options = [...t.genres.map((g) => [g, w.get(key('g', g)) ?? 0] as const), ...t.tags.map((x) => [x, (w.get(key('t', x)) ?? 0) * 1.2] as const)]
+  const [best, weight] = options.sort((a, b) => b[1] - a[1])[0] ?? []
+  return weight && weight > 0.5 ? best : undefined
+}
+
+// Lo que entendió la IA de un pedido como "algo como Dark pero más corto"
+export interface MoodFilter {
+  genres: string[]
+  keywords: string[] // en inglés, como las etiquetas de TMDB
+  similar: string[] // títulos que nombró el pedido o que se le parecen
+  kind?: 'movie' | 'tv'
+  maxRuntime?: number
+}
+
+const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
+export function moodMatch(catalog: Title[], f: MoodFilter, s: Settings, votes: Votes[]): Title[] {
+  const names = f.similar.map(norm)
+  const refs = catalog.filter((t) => names.includes(norm(t.title)) || (t.originalTitle && names.includes(norm(t.originalTitle))))
+  const refGenres = new Set(refs.flatMap((r) => r.genres))
+  const refTags = new Set(refs.flatMap((r) => r.tags))
+  const words = f.keywords.map(norm)
+  return catalog
+    .filter((t) => eligible(t, s, votes) && !refs.includes(t))
+    .filter((t) => !f.kind || t.kind === f.kind)
+    .filter((t) => !f.maxRuntime || (t.runtime ?? 0) <= f.maxRuntime)
+    .map((t) => {
+      const hay = norm([...t.tags, t.overview].join(' '))
+      const s =
+        t.genres.filter((g) => f.genres.includes(g)).length * 2 +
+        words.filter((w) => hay.includes(w)).length +
+        t.genres.filter((g) => refGenres.has(g)).length +
+        t.tags.filter((x) => refTags.has(x)).length * 1.5 +
+        quality(t) * 0.2
+      return { t, s }
+    })
+    .filter((x) => x.s >= 2.5)
+    .sort((a, b) => b.s - a.s)
+    .slice(0, 12)
     .map(({ t }) => t)
 }

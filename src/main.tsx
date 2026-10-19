@@ -12,6 +12,8 @@ import Lista from './screens/Lista'
 import Perfil from './screens/Perfil'
 import Onboarding from './screens/Onboarding'
 import Login from './screens/Login'
+import Invitados from './screens/Invitados'
+import { NeedAccount } from './components/Account'
 import './styles.css'
 
 // Enlace de invitación #/unirse/CODIGO: se guarda el código y se usa al entrar
@@ -21,11 +23,20 @@ if (invite && hasCloud) {
   location.hash = '#/'
 }
 
+// La app se usa sin cuenta; la pantalla de entrar se abre encima solo cuando algo la necesita
 function Gate() {
-  const { session, ready } = useAuth()
+  const { ready, ask, closeLogin } = useAuth()
   if (!ready) return <div className="empty" style={{ marginTop: 80 }}>Abriendo…</div>
-  if (hasCloud && !session) return <div className="app"><Login /></div>
-  return <App />
+  return (
+    <>
+      <App />
+      {ask && (
+        <div className="login-sheet" role="dialog" aria-modal="true" aria-label="Entrar a Hoy Vemos">
+          <div className="app"><Login reason={ask.reason} initialMode={ask.mode} onClose={closeLogin} /></div>
+        </div>
+      )}
+    </>
+  )
 }
 
 function App() {
@@ -33,17 +44,18 @@ function App() {
   const loc = useLocation()
   if (s.loading && s.cloud) return <div className="empty" style={{ marginTop: 80 }}>Trayendo lo mejor de hoy…</div>
   if (!s.onboarded && loc.pathname !== '/bienvenida') return <Navigate to="/bienvenida" replace />
-  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida'
+  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida' && loc.pathname !== '/invitados'
   return (
     <div className="app">
       <Routes>
         <Route path="/" element={<Hoy />} />
-        <Route path="/pareja" element={<Pareja />} />
+        <Route path="/pareja" element={s.guest ? <NeedAccount /> : <Pareja />} />
         <Route path="/titulo/:id" element={<Ficha />} />
         <Route path="/explorar" element={<Explorar />} />
         <Route path="/lista" element={<Lista />} />
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/bienvenida" element={<Onboarding />} />
+        <Route path="/invitados" element={<Invitados />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showTabs && <TabBar />}

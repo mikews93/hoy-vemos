@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { buildDeck } from '../lib/recommender'
+import { buildDeck, coupleScore, learn } from '../lib/recommender'
+import { fitsTonight, useTonight } from '../lib/tonight'
+import { FinalDeTres } from '../components/Tonight'
 import { Icon, metaLine, scoreLabel } from '../components/ui'
 import type { PersonId, Title } from '../data/types'
 
@@ -9,8 +11,10 @@ export default function Pareja() {
   const s = useStore()
   const me: PersonId = s.active
   const partner: PersonId = me === 'a' ? 'b' : 'a'
+  const [tonight] = useTonight()
   // El mazo se calcula una vez por persona para que no se reordene al votar
-  const deck = useMemo(() => buildDeck(s.catalog, s.votes[me], s.votes[partner], s.settings), [s.catalog, me, s.settings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const deck = useMemo(() => buildDeck(s.pool, s.votes[me], s.votes[partner], s.settings).filter((t) => fitsTonight(t, tonight)), [s.pool, me, s.settings, tonight]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [final, setFinal] = useState(false)
   const [idx, setIdx] = useState(0)
   const [match, setMatch] = useState<Title | null>(null)
   const [drag, setDrag] = useState(0)
@@ -19,6 +23,16 @@ export default function Pareja() {
   const card = deck[idx]
   const next = deck[idx + 1]
   const matchCount = s.votes.a.liked.filter((id) => s.votes.b.liked.includes(id)).length
+  // Coincidencias que aún no vieron, de la que más les gusta a los dos a la que menos: de aquí sale el final de tres
+  const finalists = useMemo(() => {
+    const wa = learn(s.votes.a, s.catalog)
+    const wb = learn(s.votes.b, s.catalog)
+    return s.votes.a.liked
+      .filter((id) => s.votes.b.liked.includes(id) && !s.votes.a.seen.includes(id) && !s.votes.b.seen.includes(id))
+      .map((id) => s.byId.get(id))
+      .filter((t): t is Title => Boolean(t) && fitsTonight(t!, tonight))
+      .sort((x, y) => coupleScore(y, wa, wb, s.turn) - coupleScore(x, wa, wb, s.turn))
+  }, [s.votes, s.catalog, s.byId, s.turn, tonight])
   const partnerVotes = s.votes[partner].liked.length + s.votes[partner].passed.length + s.votes[partner].disliked.length
 
   // En la nube la pareja vota desde su teléfono: si le da "me gusta" a algo que ya te gustó, la coincidencia aparece aquí al instante
@@ -73,6 +87,11 @@ export default function Pareja() {
           </button>
         ))}
       </div>
+      )}
+      {finalists.length >= 3 && (
+        <div className="pad" style={{ marginTop: 12 }}>
+          <button className="btn gold block" onClick={() => setFinal(true)}>Tienen {finalists.length} coincidencias: hagan el final de tres</button>
+        </div>
       )}
       {s.cloud && !s.partnerJoined && (
         <div className="banner">Invita a tu pareja desde <Link to="/perfil">Perfil</Link> para ver sus coincidencias.</div>
@@ -139,6 +158,8 @@ export default function Pareja() {
           {Icon.heart(32, 'var(--coral-ink)')}
         </button>
       </div>
+
+      {final && <FinalDeTres options={finalists} onClose={() => setFinal(false)} />}
 
       {match && (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="Coinciden">
