@@ -6,6 +6,7 @@ import { TrailerModal } from '../components/Trailer'
 import { REGION } from '../data/live'
 import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
+import { onPlatforms } from '../lib/platforms'
 
 // Por qué le puede gustar a una persona: primero algo que ya le gustó y se parece; si no, su gusto más fuerte que el título tiene
 function reasonFor(t: Title, v: Votes, byId: Map<string, Title>, catalog: Title[]): string | null {
@@ -39,7 +40,7 @@ export default function Ficha() {
   const isLiked = v.liked.includes(t.id)
   const flat = t.providers.filter((p) => p.kind === 'flatrate')
   const rent = t.providers.filter((p) => p.kind !== 'flatrate')
-  const mine = (name: string) => s.settings.platforms.includes(name)
+  const mine = (name: string) => s.settings.platforms.length > 0 && onPlatforms(name, s.settings.platforms)
 
   return (
     <div style={{ paddingBottom: 24 }}>

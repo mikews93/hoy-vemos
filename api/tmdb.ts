@@ -11,7 +11,7 @@ const PARAMS = new Set(['language', 'page', 'sort_by', 'vote_count.gte', 'vote_a
 export async function GET(request: Request): Promise<Response> {
   const token = env.TMDB_TOKEN
   if (!token) return Response.json({ error: 'Falta TMDB_TOKEN en Vercel' }, { status: 500 })
-  const blocked = guard(request, 300)
+  const blocked = guard(request, 900)
   if (blocked) return blocked
   const url = new URL(request.url)
   const path = url.searchParams.get('path') ?? ''

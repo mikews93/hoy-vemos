@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import type { Person, PersonId, Title, Votes } from '../data/types'
 import { DEMO_CATALOG } from '../data/demo'
-import { hasLiveData, loadLiveCatalog, loadMoreLive, loadTitles, type LiveCatalog } from '../data/live'
+import { fillScores, hasLiveData, loadLiveCatalog, loadMoreLive, loadTitles, type LiveCatalog } from '../data/live'
 import { buildDaily, sharedPool, turnOf, type DailyPicks, type Settings } from './recommender'
 import { hasCloud, pendingInvite, supabase } from './supabase'
 
@@ -109,13 +109,26 @@ function useCatalog() {
   const busy = useRef(false)
   useEffect(() => {
     if (!hasLiveData) return
+    busy.current = true
     loadLiveCatalog()
       .then((c) => {
         setLive(c)
         setCatalog(c.items.length ? c.items : DEMO_CATALOG)
+        setLoading(false)
+        // las notas que OMDb no dio la última vez se completan en segundo plano (sin otra página a la vez)
+        setLoadingMore(true)
+        return fillScores(c).then((f) => {
+          if (!f) return
+          setLive(f)
+          setCatalog(f.items)
+        })
       })
-      .catch(() => setCatalog(DEMO_CATALOG))
-      .finally(() => setLoading(false))
+      .catch(() => setCatalog((x) => (x.length ? x : DEMO_CATALOG)))
+      .finally(() => {
+        busy.current = false
+        setLoading(false)
+        setLoadingMore(false)
+      })
   }, [])
   const load = useCallback(() => {
     if (!live || live.done || busy.current) return
