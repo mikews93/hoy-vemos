@@ -1,5 +1,6 @@
 import type { Title } from '../data/types'
 import { today } from './store'
+import { onPlatforms } from './platforms'
 
 // "Recién llegó a sus plataformas". TMDB solo dice dónde está algo hoy, no cuándo llegó ni cuándo se va,
 // así que se compara lo de hoy con lo que este teléfono vio en días anteriores. Un título nuevo en el
@@ -33,7 +34,7 @@ const daysAgo = (day: string) => (Date.parse(today()) - Date.parse(day)) / 86_40
 export function trackArrivals(catalog: Title[], platforms: string[]): Arrival[] {
   const snap = read()
   const d = today()
-  const wanted = (name: string) => platforms.length === 0 || platforms.includes(name)
+  const wanted = (name: string) => onPlatforms(name, platforms)
   for (const t of catalog) {
     const now = t.providers.filter((p) => p.kind === 'flatrate').map((p) => p.name)
     const prev = snap.seen[t.id]

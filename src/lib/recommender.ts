@@ -1,4 +1,5 @@
 import type { Title, Votes, PersonId } from '../data/types'
+import { onPlatforms } from './platforms'
 
 // Recomendador por contenido: aprende pesos de géneros y etiquetas a partir de lo que cada persona
 // marcó como "me gustó" / "no me interesa" / "ya la vi", y los combina con la calidad (nota IMDb).
@@ -54,7 +55,7 @@ function dayNoise(id: string, day: string): number {
 
 export function available(t: Title, s: Settings): boolean {
   if (s.platforms.length === 0) return true
-  return t.providers.some((p) => p.kind === 'flatrate' && s.platforms.includes(p.name))
+  return t.providers.some((p) => p.kind === 'flatrate' && onPlatforms(p.name, s.platforms))
 }
 
 export function eligible(t: Title, s: Settings, votes: Votes[]): boolean {

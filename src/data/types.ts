@@ -25,6 +25,8 @@ export interface Title {
   country: string
   overview: string
   ratings: Ratings
+  imdbId?: string
+  scoresPending?: boolean // OMDb no respondió: las notas son de TMDB y se reintentan
   providers: Provider[]
   poster?: string // URL de póster (TMDB); sin él se dibuja un póster tipográfico
   backdrop?: string

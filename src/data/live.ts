@@ -1,4 +1,4 @@
-import type { Title, Kind, Provider } from './types'
+import type { Title, Kind, Provider, Ratings } from './types'
 import type { MoodFilter } from '../lib/recommender'
 
 // Datos reales: TMDB (catálogo, pósters, tráileres, dónde ver) + OMDb (IMDb, Rotten Tomatoes, Metacritic).
@@ -13,8 +13,9 @@ const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
 const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
-const CACHE_KEY = 'hv.liveCatalog.v2'
-const EXTRA_KEY = 'hv.extraTitles.v1'
+const CACHE_KEY = 'hv.liveCatalog.v3'
+const EXTRA_KEY = 'hv.extraTitles.v2'
+const SCORES_KEY = 'hv.scores.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
 
 export const hasLiveData = Boolean(TOKEN) || PROXY
@@ -27,11 +28,42 @@ export async function askMood(q: string): Promise<MoodFilter> {
   return res.json() as Promise<MoodFilter>
 }
 
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+// Los proxies limitan los pedidos por minuto de cada IP (api/_lib/guard.ts), y en casa los dos teléfonos
+// comparten IP. Cada navegador se frena solo por debajo de ese tope en vez de chocar con él.
+function pacer(perMinute: number) {
+  const sent: number[] = []
+  return async function pace() {
+    for (;;) {
+      const now = Date.now()
+      while (sent.length && sent[0] < now - 60_000) sent.shift()
+      if (sent.length < perMinute) {
+        sent.push(now)
+        return
+      }
+      await wait(sent[0] + 60_000 - now + 50)
+    }
+  }
+}
+const paceTmdb = pacer(400)
+const paceOmdb = pacer(90)
+
+// Si igual llega un "demasiados pedidos" (429), se espera y se reintenta en vez de perder el título
+async function get(url: string, pace: () => Promise<void>, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    await pace()
+    const res = await fetch(url, init)
+    if (res.status !== 429 || attempt >= 2) return res
+    await wait(Math.min(Number(res.headers.get('retry-after')) || 20, 60) * 1000)
+  }
+}
+
 async function tmdb<T>(path: string, params: Record<string, string> = {}): Promise<T> {
   const qs = new URLSearchParams({ language: 'es-MX', ...params })
   const res = PROXY
-    ? await fetch(`/api/tmdb?${new URLSearchParams({ path })}&${qs}`)
-    : await fetch(`https://api.themoviedb.org/3${path}?${qs}`, { headers: { Authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
+    ? await get(`/api/tmdb?${new URLSearchParams({ path })}&${qs}`, paceTmdb)
+    : await get(`https://api.themoviedb.org/3${path}?${qs}`, paceTmdb, { headers: { Authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
   if (!res.ok) throw new Error(`TMDB ${res.status} en ${path}`)
   return res.json() as Promise<T>
 }
@@ -65,30 +97,74 @@ interface Detail {
   'watch/providers'?: { results: Record<string, { flatrate?: { provider_name: string }[]; rent?: { provider_name: string }[]; buy?: { provider_name: string }[] }> }
 }
 
-interface Omdb { imdbRating?: string; imdbVotes?: string; Metascore?: string; Ratings?: { Source: string; Value: string }[] }
+interface Omdb { Response?: string; Error?: string; imdbRating?: string; imdbVotes?: string; Metascore?: string; Ratings?: { Source: string; Value: string }[] }
+type Scores = Pick<Ratings, 'imdb' | 'imdbVotes' | 'rt' | 'mc'>
 
-async function omdb(imdbId: string) {
+// Las notas casi no cambian: se guardan 30 días en el navegador por id de IMDb, así cada día
+// solo se gasta el límite diario de OMDb en títulos nuevos
+const SCORES_TTL = 30 * 24 * 3600 * 1000
+let scoreCache: Record<string, { at: number; s: Scores }> | undefined
+function scoresStore() {
+  if (!scoreCache) {
+    try {
+      scoreCache = JSON.parse(localStorage.getItem(SCORES_KEY) ?? '{}') as Record<string, { at: number; s: Scores }>
+    } catch {
+      scoreCache = {}
+    }
+  }
+  return scoreCache
+}
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+function saveScores() {
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    try {
+      const now = Date.now()
+      const c = scoresStore()
+      for (const id of Object.keys(c)) if (now - c[id].at > SCORES_TTL) delete c[id]
+      localStorage.setItem(SCORES_KEY, JSON.stringify(c))
+    } catch {
+      // sin espacio: se vuelven a pedir
+    }
+  }, 500)
+}
+
+// null = OMDb no respondió (límite diario, clave o red): el título queda pendiente y se reintenta después
+async function omdb(imdbId: string): Promise<Scores | null> {
   if (!OMDB && !PROXY) return {}
+  const hit = scoresStore()[imdbId]
+  if (hit && Date.now() - hit.at < SCORES_TTL) return hit.s
   try {
-    const res = await fetch(PROXY ? `/api/omdb?i=${imdbId}` : `https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB}`)
-    if (!res.ok) return {}
+    const res = await get(PROXY ? `/api/omdb?i=${imdbId}` : `https://www.omdbapi.com/?i=${imdbId}&apikey=${OMDB}`, paceOmdb)
+    if (!res.ok) return null
     const d = (await res.json()) as Omdb
+    // sin clave en el servidor el proxy responde {}: no hay notas que esperar
+    if (!d.Response) return {}
+    // límite diario o clave mala: se reintenta más tarde; "no encontrada" se guarda como sin notas
+    if (d.Response === 'False' && /limit|key/i.test(d.Error ?? '')) return null
     const rt = d.Ratings?.find((r) => r.Source === 'Rotten Tomatoes')?.Value
-    return {
+    const s: Scores = {
       imdb: d.imdbRating && d.imdbRating !== 'N/A' ? Number(d.imdbRating) : undefined,
       imdbVotes: d.imdbVotes && d.imdbVotes !== 'N/A' ? Math.round(Number(d.imdbVotes.replace(/,/g, '')) / 1000) : undefined,
       rt: rt ? Number(rt.replace('%', '')) : undefined,
       mc: d.Metascore && d.Metascore !== 'N/A' ? Number(d.Metascore) : undefined,
     }
+    scoresStore()[imdbId] = { at: Date.now(), s }
+    saveScores()
+    return s
   } catch {
-    return {}
+    return null
   }
 }
+
+// Sin OMDb se usa la nota de TMDB como aproximación
+const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc })
 
 async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   const d = await tmdb<Detail>(`/${kind}/${id}`, { append_to_response: 'external_ids,videos,credits,keywords,watch/providers' })
   const imdbId = d.imdb_id || d.external_ids?.imdb_id
   const scores = imdbId ? await omdb(imdbId) : {}
+  const tmdbRatings: Ratings = { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) }
   const wp = d['watch/providers']?.results?.[REGION]
   const providers: Provider[] = [
     ...(wp?.flatrate ?? []).map((p) => ({ name: p.provider_name, kind: 'flatrate' as const })),
@@ -109,8 +185,9 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
     tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
     country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',
     overview: d.overview,
-    // Sin OMDb se usa la nota de TMDB como aproximación
-    ratings: { imdb: scores.imdb ?? Math.round(d.vote_average * 10) / 10, imdbVotes: scores.imdbVotes ?? Math.round(d.vote_count / 1000), rt: scores.rt, mc: scores.mc },
+    ratings: withScores(tmdbRatings, scores ?? {}),
+    imdbId,
+    scoresPending: scores === null || undefined,
     providers,
     poster: d.poster_path ? `${IMG}w500${d.poster_path}` : undefined,
     backdrop: d.backdrop_path ? `${IMG}w1280${d.backdrop_path}` : undefined,
@@ -198,6 +275,23 @@ export async function loadMoreLive(current: LiveCatalog): Promise<LiveCatalog> {
   const next: LiveCatalog = { items: [...current.items, ...items], pages: page, done: last || page >= MAX_PAGES }
   const at = readCache()?.at ?? Date.now()
   writeCache({ ...next, at })
+  return next
+}
+
+// Títulos que quedaron sin notas porque OMDb no respondió: se reintentan al abrir la app (de a pocos,
+// para no gastar el límite diario de una vez). Devuelve null si no había nada pendiente.
+export async function fillScores(current: LiveCatalog, max = 60): Promise<LiveCatalog | null> {
+  const pending = current.items.filter((t) => t.scoresPending && t.imdbId).slice(0, max)
+  if (!pending.length) return null
+  const fixed = new Map<string, Title>()
+  for (const t of pending) {
+    const s = await omdb(t.imdbId!)
+    if (s === null) break // OMDb sigue sin responder: se prueba la próxima vez
+    fixed.set(t.id, { ...t, ratings: withScores(t.ratings, s), scoresPending: undefined })
+  }
+  if (!fixed.size) return null
+  const next: LiveCatalog = { ...current, items: current.items.map((t) => fixed.get(t.id) ?? t) }
+  writeCache({ ...next, at: readCache()?.at ?? Date.now() })
   return next
 }
 
