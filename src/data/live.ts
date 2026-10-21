@@ -315,6 +315,25 @@ export function searchTitles(q: string, max = 6): Promise<Title[]> {
   return searches.get(key)!
 }
 
+export type OmdbStatus = 'ok' | 'sin-clave' | 'limite' | 'clave' | 'error'
+
+// Prueba de la clave de OMDb que está en el servidor (Perfil → Datos), para saber por qué faltan notas
+export async function checkOmdb(): Promise<OmdbStatus> {
+  if (!PROXY && !OMDB) return 'sin-clave'
+  try {
+    const url = PROXY ? `/api/omdb?i=tt0903747&prueba=1` : `https://www.omdbapi.com/?i=tt0903747&apikey=${OMDB}`
+    const res = await fetch(url, { cache: 'no-store' })
+    const d = (await res.json().catch(() => ({}))) as Omdb
+    if (res.ok && d.Response === 'True') return 'ok'
+    if (res.ok && !d.Response) return 'sin-clave' // el proxy responde {} cuando falta OMDB_KEY en Vercel
+    if (/limit/i.test(d.Error ?? '')) return 'limite'
+    if (/key/i.test(d.Error ?? '') || res.status === 401) return 'clave'
+    return 'error'
+  } catch {
+    return 'error'
+  }
+}
+
 // Títulos guardados (Mi lista, listas anteriores) que ya no salen en el catálogo del día: se traen uno por uno
 export async function loadTitles(ids: string[]): Promise<Title[]> {
   let cache: Record<string, Title> = {}

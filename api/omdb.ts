@@ -12,13 +12,15 @@ export async function GET(request: Request): Promise<Response> {
   if (blocked) return blocked
   const params = new URL(request.url).searchParams
   const id = params.get('i') ?? ''
-  if (!/^tt\d{5,10}$/.test(id) || [...params.keys()].length !== 1) return Response.json({ error: 'Id de IMDb no válido' }, { status: 400 })
+  // ?prueba=1 viene de Perfil → Datos: se pregunta a OMDb de verdad, sin la copia de la CDN
+  const probe = params.get('prueba') === '1'
+  if (!/^tt\d{5,10}$/.test(id) || [...params.keys()].length !== (probe ? 2 : 1)) return Response.json({ error: 'Id de IMDb no válido' }, { status: 400 })
   const res = await fetch(`https://www.omdbapi.com/?i=${id}&apikey=${key}`)
   return new Response(res.body, {
     status: res.status,
     headers: {
       'content-type': 'application/json',
-      'cache-control': res.ok ? 'public, s-maxage=604800, stale-while-revalidate=86400' : 'no-store',
+      'cache-control': res.ok && !probe ? 'public, s-maxage=604800, stale-while-revalidate=86400' : 'no-store',
     },
   })
 }
