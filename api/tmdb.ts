@@ -4,9 +4,9 @@ import { guard } from './_lib/guard.js'
 
 const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
 
-const ALLOWED = /^\/(discover\/(movie|tv)|(movie|tv)\/\d+)$/
+const ALLOWED = /^\/(discover\/(movie|tv)|(movie|tv)\/\d+|search\/multi)$/
 // Parámetros que manda src/data/live.ts; cualquier otro se rechaza (así no se puede saltar la caché con basura)
-const PARAMS = new Set(['language', 'page', 'sort_by', 'vote_count.gte', 'vote_average.gte', 'watch_region', 'with_watch_monetization_types', 'append_to_response'])
+const PARAMS = new Set(['language', 'page', 'sort_by', 'vote_count.gte', 'vote_average.gte', 'watch_region', 'with_watch_monetization_types', 'append_to_response', 'query', 'include_adult'])
 
 export async function GET(request: Request): Promise<Response> {
   const token = env.TMDB_TOKEN

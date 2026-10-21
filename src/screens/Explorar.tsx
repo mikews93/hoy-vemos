@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../lib/store'
 import { browseAll, buildExplore, moodMatch, moodSearch, type MoodFilter } from '../lib/recommender'
-import { askMood, hasMoodAi } from '../data/live'
+import { askMood, hasMoodAi, searchTitles } from '../data/live'
+import type { Title } from '../data/types'
 import { fitsTonight, useTonight } from '../lib/tonight'
 import { Icon, Rail, PosterCard } from '../components/ui'
 
@@ -19,6 +20,20 @@ export default function Explorar() {
   const pool = useMemo(() => s.pool.filter((t) => fitsTonight(t, tonight)), [s.pool, tonight])
   const sections = useMemo(() => buildExplore(pool, s.votes, s.settings, exclude), [pool, s.votes, s.settings, exclude])
   const results = useMemo(() => moodSearch(pool, q, s.settings, [s.votes.a, s.votes.b]), [pool, q, s.settings, s.votes])
+  // Buscar por nombre en todo TMDB, aparte de la búsqueda por ánimo (que solo mira el catálogo)
+  const [byName, setByName] = useState<{ q: string; items: Title[]; loading: boolean }>({ q: '', items: [], loading: false })
+  useEffect(() => {
+    const text = q.trim()
+    if (text.length < 3 || MOODS.includes(q)) return
+    setByName((cur) => ({ q: text, items: cur.q === text ? cur.items : [], loading: true }))
+    const timer = setTimeout(() => {
+      searchTitles(text)
+        .then((items) => setByName((cur) => (cur.q === text ? { q: text, items, loading: false } : cur)))
+        .catch(() => setByName((cur) => (cur.q === text ? { q: text, items: [], loading: false } : cur)))
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [q])
+  const named = byName.q === q.trim() && !MOODS.includes(q) ? byName : undefined
   const aiFilter = ai?.q === q ? ai.filter : undefined
   const aiResults = useMemo(() => (aiFilter ? moodMatch(pool, aiFilter, s.settings, [s.votes.a, s.votes.b]) : []), [aiFilter, pool, s.settings, s.votes])
   const everything = useMemo(
@@ -89,13 +104,29 @@ export default function Explorar() {
       </div>
 
       {q ? (
-        shown.length ? (
-          <div className="pad grid3" style={{ marginTop: 16 }}>
-            {shown.map((t) => <PosterCard key={t.id} t={t} />)}
-          </div>
-        ) : (
-          <div className="empty">Nada con eso por ahora. Prueben con otras palabras, como "comedia", "familia" o "giros".</div>
-        )
+        <>
+          {named && (named.items.length > 0 || named.loading) && (
+            <section>
+              <div style={{ padding: '22px 20px 12px' }}>
+                <h2 className="h2">Con ese nombre</h2>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{named.loading && !named.items.length ? 'Buscando…' : 'En todo el catálogo, aunque ya la hayan visto'}</span>
+              </div>
+              <div className="pad grid3">
+                {named.items.map((t) => <PosterCard key={t.id} t={t} />)}
+              </div>
+            </section>
+          )}
+          {shown.length ? (
+            <>
+              {named && named.items.length > 0 && <div style={{ padding: '22px 20px 0' }}><h2 className="h2">Por lo que buscan</h2></div>}
+              <div className="pad grid3" style={{ marginTop: 16 }}>
+                {shown.map((t) => <PosterCard key={t.id} t={t} />)}
+              </div>
+            </>
+          ) : (
+            !named?.items.length && !named?.loading && <div className="empty">Nada con eso por ahora. Prueben con otras palabras, como "comedia", "familia" o "giros".</div>
+          )}
+        </>
       ) : (
         sections.map((sec, i) => (
           <section key={sec.tag}>

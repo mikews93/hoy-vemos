@@ -295,6 +295,26 @@ export async function fillScores(current: LiveCatalog, max = 60): Promise<LiveCa
   return next
 }
 
+interface Search { results: { id: number; media_type: string; poster_path?: string }[] }
+const searches = new Map<string, Promise<Title[]>>()
+
+// Búsqueda por nombre en todo TMDB (no solo en el catálogo del día): para encontrar algo puntual,
+// aunque ya lo hayan visto o no pase los filtros. Pocas por búsqueda porque cada una gasta OMDb.
+export function searchTitles(q: string, max = 6): Promise<Title[]> {
+  const key = q.trim().toLowerCase()
+  if (!hasLiveData || key.length < 3) return Promise.resolve([])
+  if (!searches.has(key)) {
+    const run = tmdb<Search>('/search/multi', { query: key, include_adult: 'false' }).then(async (res) => {
+      const hits = res.results.filter((r) => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path).slice(0, max)
+      const items = await Promise.allSettled(hits.map((r, i) => toTitle(r.media_type as Kind, r.id, i)))
+      return items.flatMap((x) => (x.status === 'fulfilled' ? [x.value] : []))
+    })
+    run.catch(() => searches.delete(key))
+    searches.set(key, run)
+  }
+  return searches.get(key)!
+}
+
 // Títulos guardados (Mi lista, listas anteriores) que ya no salen en el catálogo del día: se traen uno por uno
 export async function loadTitles(ids: string[]): Promise<Title[]> {
   let cache: Record<string, Title> = {}

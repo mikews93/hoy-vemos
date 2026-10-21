@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { Icon, Poster, metaLine } from '../components/ui'
 import { TrailerModal } from '../components/Trailer'
-import { REGION } from '../data/live'
+import { REGION, hasLiveData, loadTitles } from '../data/live'
 import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
 import { onPlatforms } from '../lib/platforms'
@@ -28,8 +28,22 @@ export default function Ficha() {
   const { id = '' } = useParams()
   const nav = useNavigate()
   const s = useStore()
-  const t = s.byId.get(id)
+  const [fetched, setFetched] = useState<{ id: string; t?: Title }>()
+  const known = s.byId.get(id)
+  const t = known ?? (fetched?.id === id ? fetched.t : undefined)
   const [showTrailer, setShowTrailer] = useState(false)
+  // Lo que no está en el catálogo del día (por ejemplo, algo encontrado al buscar por nombre) se trae aparte
+  useEffect(() => {
+    if (known || !hasLiveData || s.loading) return
+    let alive = true
+    loadTitles([id])
+      .then(([x]) => alive && setFetched({ id, t: x }))
+      .catch(() => alive && setFetched({ id }))
+    return () => {
+      alive = false
+    }
+  }, [id, known, s.loading])
+  if (!t && (s.loading || (hasLiveData && fetched?.id !== id))) return <div className="empty" style={{ marginTop: 80 }}>Cargando…</div>
   if (!t) return <div className="empty" style={{ marginTop: 80 }}>No encontramos este título. <Link to="/">Volver al inicio</Link></div>
 
   const v = s.votes[s.active]
