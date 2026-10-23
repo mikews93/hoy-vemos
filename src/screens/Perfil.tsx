@@ -6,6 +6,10 @@ import { RateGrid } from './Onboarding'
 import { Invite } from '../components/Invite'
 import { AccountButtons } from '../components/Account'
 import { useVetoes } from '../lib/actions'
+import { ImportHistory } from '../components/ImportHistory'
+import { PushToggle } from '../components/PushToggle'
+import { canPush } from '../lib/push'
+import { TOPICS, TOPIC_PREFIX, topicKey } from '../lib/topics'
 import type { PersonId } from '../data/types'
 import { checkOmdb, type OmdbStatus } from '../data/live'
 
@@ -19,6 +23,7 @@ const OMDB_TEXT: Record<OmdbStatus | 'probando', string> = {
 }
 
 const canNotify = typeof Notification !== 'undefined'
+const vetoLabel = (v: string) => (v.startsWith(TOPIC_PREFIX) ? TOPICS.find((t) => topicKey(t.id) === v)?.label.toLowerCase() ?? v : v)
 
 export default function Perfil() {
   const s = useStore()
@@ -94,6 +99,12 @@ export default function Perfil() {
         </>
       )}
 
+      <div className="row-head"><h2 className="h2">{s.cloud || s.guest ? 'Traer tu historial' : `Traer el historial de ${s.people[s.active].name}`}</h2></div>
+      <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="sub" style={{ margin: 0 }}>Sube lo que calificaste en IMDb o Letterboxd y la app aprende tus gustos de una vez.</p>
+        <ImportHistory />
+      </div>
+
       <div className="row-head"><h2 className="h2">Plataformas{s.cloud && s.partnerJoined ? ' (de los dos)' : ''}</h2></div>
       <div className="pad" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {PLATFORMS.map((p) => (
@@ -111,8 +122,9 @@ export default function Perfil() {
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="sub" style={{ margin: 0 }}>
           Lo que marques no sale en la lista de hoy, en Pareja ni en Explorar.
-          {!s.guest && partnerVetoes.length > 0 && ` ${s.people[partner].name} vetó: ${partnerVetoes.join(', ')}.`}
+          {!s.guest && partnerVetoes.length > 0 && ` ${s.people[partner].name} vetó: ${partnerVetoes.map(vetoLabel).join(', ')}.`}
         </p>
+        <span className="eyebrow" style={{ fontSize: 11 }}>Géneros</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           {genres.map((g) => (
             <button key={g} className={`chip${mine.includes(g) ? ' coral on' : ''}`} aria-pressed={mine.includes(g)} onClick={() => toggleVeto(g)}>
@@ -120,12 +132,28 @@ export default function Perfil() {
             </button>
           ))}
         </div>
+        <span className="eyebrow" style={{ fontSize: 11, marginTop: 6 }}>Temas</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {TOPICS.map((t) => {
+            const on = mine.includes(topicKey(t.id))
+            return (
+              <button key={t.id} className={`chip${on ? ' coral on' : ''}`} aria-pressed={on} onClick={() => toggleVeto(topicKey(t.id))}>
+                {on ? `Sin: ${t.label.toLowerCase()}` : t.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="note" style={{ margin: 0 }}>Los temas se detectan con las etiquetas de TMDB; si un título no está etiquetado, puede colarse.</p>
       </div>
 
       {canNotify && s.live && (
         <>
           <div className="row-head"><h2 className="h2">Avisos</h2></div>
           <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {s.cloud && canPush() ? (
+              <PushToggle />
+            ) : (
+            <>
             <p className="sub" style={{ margin: 0 }}>Te avisamos en este teléfono cuando algo de Mi lista llega a sus plataformas. El aviso sale al abrir la app.</p>
             {notify === 'granted' ? (
               <span className="sub" style={{ margin: 0, color: 'var(--ok)' }}>Avisos activados en este teléfono.</span>
@@ -134,13 +162,15 @@ export default function Perfil() {
             ) : (
               <button className="btn" onClick={askNotify}>Activar avisos</button>
             )}
+            </>
+            )}
           </div>
         </>
       )}
 
       <div className="row-head"><h2 className="h2">Lista de hoy</h2></div>
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p className="sub" style={{ margin: 0 }}>Se arma sola cada día al abrir la app. Si cambiaste filtros o gustos, puedes rehacerla ahora.</p>
+        <p className="sub" style={{ margin: 0 }}>{s.cloud ? 'Se arma sola cada madrugada.' : 'Se arma sola cada día al abrir la app.'} Si cambiaste filtros o gustos, puedes rehacerla ahora.</p>
         <button className="btn" onClick={() => { s.refreshDaily(); nav('/') }}>Rehacer la lista de hoy</button>
       </div>
 

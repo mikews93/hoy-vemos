@@ -40,20 +40,21 @@ export function Poster({ t, match = false, size }: { t: Title; match?: boolean; 
   )
 }
 
-export function PosterCard({ t, match }: { t: Title; match?: boolean }) {
+export function PosterCard({ t, match, label }: { t: Title; match?: boolean; label?: string }) {
   return (
-    <Link to={`/titulo/${t.id}`} className="card-item" aria-label={t.title}>
+    <Link to={`/titulo/${t.id}`} className="card-item" aria-label={label ? `${t.title}, ${label}` : t.title}>
       <Poster t={t} match={match} />
+      {label && <span className="meta" style={{ color: 'var(--gold)', fontWeight: 700 }}>{label}</span>}
       <span className="meta">{t.poster ? t.title : metaLine(t)}</span>
     </Link>
   )
 }
 
-export function Rail({ items, matchIds = [] }: { items: Title[]; matchIds?: string[] }) {
+export function Rail({ items, matchIds = [], labels = {} }: { items: Title[]; matchIds?: string[]; labels?: Record<string, string> }) {
   return (
     <div className="rail">
       {items.map((t) => (
-        <PosterCard key={t.id} t={t} match={matchIds.includes(t.id)} />
+        <PosterCard key={t.id} t={t} match={matchIds.includes(t.id)} label={labels[t.id]} />
       ))}
     </div>
   )

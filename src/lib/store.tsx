@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session } from '@supabase/supabase-js'
 import type { Person, PersonId, Title, Votes } from '../data/types'
 import { DEMO_CATALOG } from '../data/demo'
-import { fillScores, hasLiveData, loadLiveCatalog, loadMoreLive, loadTitles, type LiveCatalog } from '../data/live'
+import { fillScores, hasLiveData, loadLiveCatalog, loadMoreLive, loadTasteTitles, loadTitles, type LiveCatalog } from '../data/live'
 import { buildDaily, sharedPool, turnOf, type DailyPicks, type Settings } from './recommender'
 import { hasCloud, pendingInvite, supabase } from './supabase'
 
@@ -64,6 +64,19 @@ export const today = () => new Date().toLocaleDateString('sv-SE') // AAAA-MM-DD 
 
 type VoteKind = keyof Votes
 
+export interface ImportedVote {
+  id: string
+  kinds: VoteKind[] // siempre 'seen', más 'liked' o 'disliked' según la nota
+}
+
+// No pisa lo que ya calificó en la app: el historial importado solo llena lo que falta
+function mergeImported(v: Votes, rows: ImportedVote[]): Votes {
+  const known = new Set([...v.liked, ...v.disliked, ...v.seen, ...v.passed])
+  const next: Votes = { liked: [...v.liked], disliked: [...v.disliked], seen: [...v.seen], passed: [...v.passed] }
+  rows.filter((r) => !known.has(r.id)).forEach((r) => r.kinds.forEach((k) => next[k].push(r.id)))
+  return next
+}
+
 interface Store extends Saved {
   catalog: Title[]
   pool: Title[] // el catálogo sin lo que alguno de los dos vetó: de aquí sale todo lo compartido
@@ -80,6 +93,7 @@ interface Store extends Saved {
   email?: string
   daily: DailyPicks | undefined
   vote: (id: string, kind: VoteKind, who?: PersonId) => void
+  importVotes: (rows: ImportedVote[]) => Promise<void> // historial de IMDb o Letterboxd de quien usa la app
   clearVote: (id: string, who?: PersonId) => void
   toggleList: (id: string) => void
   markWatched: (id: string, on: boolean) => void // "ya la vimos": cuenta como vista para los dos
@@ -166,7 +180,36 @@ function useWithSaved(catalog: Title[], loading: boolean, saved: Saved): Title[]
       alive = false
     }
   }, [missing, loading])
-  return useMemo(() => (extra.length ? [...catalog, ...extra.filter((t) => !catalog.some((c) => c.id === t.id))] : catalog), [catalog, extra])
+
+  // Lo que calificaron y no está en el catálogo (sobre todo el historial importado) hace falta para aprender sus
+  // gustos: se trae liviano, solo géneros y etiquetas. Los más recientes primero, con tope para no saturar TMDB.
+  const [taste, setTaste] = useState<Title[]>([])
+  const rated = [...saved.votes.a.liked, ...saved.votes.a.disliked, ...saved.votes.b.liked, ...saved.votes.b.disliked].slice(-150)
+  const knownAll = new Set([...known, ...taste.map((t) => t.id)])
+  const unrated = [...new Set(rated.filter((id) => !knownAll.has(id)))].join(',')
+  useEffect(() => {
+    if (!hasLiveData || loading || !unrated) return
+    let alive = true
+    loadTasteTitles(unrated.split(','))
+      .then((items) => alive && items.length && setTaste((e) => [...e, ...items.filter((t) => !e.some((x) => x.id === t.id))]))
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [unrated, loading])
+
+  return useMemo(() => {
+    const more = [...extra, ...taste]
+    if (!more.length) return catalog
+    const ids = new Set(catalog.map((c) => c.id))
+    const added: Title[] = []
+    for (const t of more) {
+      if (ids.has(t.id)) continue
+      ids.add(t.id)
+      added.push(t)
+    }
+    return [...catalog, ...added]
+  }, [catalog, extra, taste])
 }
 
 const without = (v: Votes, id: string): Votes => ({
@@ -248,6 +291,7 @@ function LocalStoreProvider({ children, guest = false }: { children: ReactNode; 
       guest,
       partnerJoined: !guest,
       vote: (id, kind, p) => update((s) => ({ ...s, votes: { ...s.votes, [who(p)]: withVote(s.votes[who(p)], id, kind) } })),
+      importVotes: async (rows) => update((s) => ({ ...s, votes: { ...s.votes, [s.active]: mergeImported(s.votes[s.active], rows) } })),
       clearVote: (id, p) => update((s) => ({ ...s, votes: { ...s.votes, [who(p)]: without(s.votes[who(p)], id) }, watched: s.watched.filter((x) => x !== id) })),
       toggleList: (id) => update((s) => ({ ...s, myList: s.myList.includes(id) ? s.myList.filter((x) => x !== id) : [id, ...s.myList] })),
       markWatched: (id, on) =>
@@ -459,6 +503,20 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
       email: meta.email,
       // En la nube cada uno vota por sí mismo: un voto "para la pareja" no se guarda
       vote: (id, kind, p) => (p === 'b' ? undefined : myVote(id, kind)),
+      importVotes: async (rows) => {
+        const merged = mergeImported(saved.votes.a, rows)
+        const added = (Object.keys(merged) as VoteKind[]).flatMap((k) =>
+          merged[k].filter((id) => !saved.votes.a[k].includes(id)).map((id) => ({ user_id: userId, household_id: hid, title_id: id, kind: k })),
+        )
+        setSaved((s) => ({ ...s, votes: { ...s.votes, a: merged } }))
+        for (let i = 0; i < added.length; i += 500) {
+          const { error } = await sb.from('votes').upsert(added.slice(i, i + 500), { onConflict: 'user_id,title_id,kind', ignoreDuplicates: true })
+          if (error) {
+            refetch()
+            throw new Error('No se pudo guardar el historial')
+          }
+        }
+      },
       clearVote: (id, p) => {
         if (p === 'b') return
         write(

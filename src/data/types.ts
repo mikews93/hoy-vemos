@@ -21,8 +21,11 @@ export interface Title {
   year: number
   runtime?: number // minutos (películas) o duración media de episodio (series)
   seasons?: number
+  episodes?: number[] // series: episodios de cada temporada ya estrenada, empezando por la 1
+  nextEpisode?: { date: string; season: number; episode: number } // series: el próximo que se estrena
   genres: string[]
   tags: string[]
+  topics?: string[] // temas delicados detectados en sus palabras clave (src/lib/topics.ts)
   country: string
   overview: string
   ratings: Ratings

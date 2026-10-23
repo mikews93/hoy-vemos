@@ -16,12 +16,32 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 - **¿Cuánto tiempo tienen? / ¿Quiénes ven?**: chips en Hoy (sin apuro, menos de 1 h, hasta 2 h; los dos, solo yo, con niños) que filtran Hoy, Pareja, Explorar y "Decide tú". Se guardan por día en el teléfono (`src/lib/tonight.ts`).
 - **Final de tres**: con 3 coincidencias o más, en Pareja cada uno quita una por turno y la que queda es la de la noche.
 - **Turnos justos**: cada noche elegida guarda cuánto le gustaba a cada uno (su posición en el catálogo según sus gustos). Si uno cedió en las últimas noches, la lista del día, "Decide tú" y el final de tres pesan más sus gustos, y Hoy lo dice.
-- **Vetos**: en Perfil, "Lo que nunca quiero ver" por género. Lo vetado por cualquiera de los dos no sale en nada compartido.
+- **Vetos**: en Perfil, "Lo que nunca quiero ver" por género y por tema (muere un animal, suicidio, abuso sexual, mucha sangre, drogas, infidelidad, arañas, pérdida de un embarazo). Los temas salen de las palabras clave de TMDB (`src/lib/topics.ts`), así que algo sin etiquetar puede colarse. Lo vetado por cualquiera de los dos no sale en nada compartido.
 - **Para repetir**: en Mi lista, lo que ya vieron y les encantó.
 - **Recién llegó a sus plataformas**: TMDB no dice cuándo llega o se va un título, así que cada teléfono compara lo de hoy con lo que vio en días anteriores (`src/lib/arrivals.ts`) y muestra los últimos 7 días. Con los avisos activados en Perfil, avisa al abrir la app si llegó algo de Mi lista (no hay avisos con la app cerrada).
 - **Explicación de pareja**: la ficha dice por qué le puede gustar a cada uno.
 - **Ánimo con IA**: en Explorar, "Buscar con IA" entiende pedidos como "algo como Dark pero más corto" (`api/mood.ts`, necesita `ANTHROPIC_API_KEY` en Vercel). Sin la clave queda la búsqueda por palabras.
+- **Seguimiento de series**: en la ficha de una serie, "Su avance" muestra por dónde van, el botón "Vimos el T2 · E6" y las temporadas para marcar de un toque. Hoy muestra "Seguir viendo" con el próximo episodio, y "Decide tú" prefiere lo que ya van viendo. Al terminar la última temporada queda como vista; si la serie sigue, dice cuándo sale el próximo episodio. El avance es del hogar (`settings.progress`) y los episodios vienen de TMDB (`src/lib/series.ts`).
+- **Importar historial**: en Perfil (y al final de la bienvenida) se sube el ratings.csv de IMDb o de Letterboxd. Todo cuenta como visto; 7 o más de 10 cuenta como "me gustó" y 4 o menos como "no me interesa". Lo ya calificado en la app no se pisa. Los títulos que no están en el catálogo se traen livianos desde TMDB (sin gastar OMDb) solo para aprender gustos (`src/lib/importHistory.ts`).
+- **Su año**: desde Mi lista ("Su 2026"), cuántas películas, series, episodios y horas vieron juntos, sus géneros, la que más les gustó a los dos y quién cedió más noches (`src/lib/summary.ts`). Las noches y el avance de series cuentan solo del año; "La vimos" no guarda fecha en el teléfono, así que entra todo.
 - **Noche con invitados**: de 3 a 6 personas votan sí o no a las mismas 8 propuestas pasándose el teléfono; gana la de más "sí". No cuenta para los gustos ni los turnos de la pareja.
+
+## Proceso de madrugada y avisos con la app cerrada
+
+`api/nightly.ts` corre cada día a las 4 a. m. de Colombia (Vercel Cron, `vercel.json`). Para cada hogar arma la lista del día si nadie abrió la app todavía, y manda avisos Web Push a los teléfonos que los activaron en Perfil: cuando algo de Mi lista llega a sus plataformas y cuando sale un episodio nuevo de una serie que siguen. En iPhone los avisos solo funcionan con la app agregada a la pantalla de inicio.
+
+Para activarlo:
+
+1. En Supabase → SQL Editor, correr `supabase/migrations/20261023000000_push.sql` (tabla `push_subscriptions` y columna `households.provider_snapshot`).
+2. En Vercel → Settings → Environment Variables:
+
+| Variable | Valor |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → clave `service_role` (secreta, solo servidor) |
+| `CRON_SECRET` | cualquier texto largo al azar; Vercel lo manda al llamar el proceso |
+| `VITE_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` | el par que da `npx web-push generate-vapid-keys` |
+
+Sin esas variables el proceso responde 501 y la app sigue armando la lista al abrirse, como antes.
 
 ## Correrla
 
@@ -85,7 +105,6 @@ Cada push a `main` se publica solo; cada PR tiene su vista previa.
 ## Pendiente (siguientes pasos)
 
 - Proceso nocturno en servidor que arme la lista de madrugada y use el dataset oficial `title.ratings.tsv` de IMDb.
-- Importar historial desde IMDb o Letterboxd (CSV).
-- Seguimiento de series por episodio, y avisos con la app cerrada (necesitan un proceso en servidor y notificaciones push).
+- Avisos con la app cerrada (necesitan un proceso en servidor y notificaciones push).
 
 Diseño: lienzo "Recomendador – Diseño de interfaces" (estilo "Sala oscura").

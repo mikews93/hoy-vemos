@@ -7,6 +7,7 @@ import { REGION, hasLiveData, loadTitles } from '../data/live'
 import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
 import { onPlatforms } from '../lib/platforms'
+import { SeriesTracker } from '../components/SeriesTracker'
 
 // Por qué le puede gustar a una persona: primero algo que ya le gustó y se parece; si no, su gusto más fuerte que el título tiene
 function reasonFor(t: Title, v: Votes, byId: Map<string, Title>, catalog: Title[]): string | null {
@@ -109,6 +110,8 @@ export default function Ficha() {
         </button>
         <button className="btn icon" style={{ height: 52, width: 52 }} aria-label="No me interesa" onClick={() => { s.vote(t.id, 'disliked'); nav(-1) }}>{Icon.ban()}</button>
       </div>
+
+      {t.kind === 'tv' && <SeriesTracker t={t} />}
 
       <h2 className="h2 pad" style={{ fontSize: 20, marginTop: 28, marginBottom: 12 }}>Dónde ver</h2>
       {t.providers.length ? (

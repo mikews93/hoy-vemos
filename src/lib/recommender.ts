@@ -1,5 +1,7 @@
-import type { Title, Votes, PersonId } from '../data/types'
-import { onPlatforms } from './platforms'
+import type { Title, Votes, PersonId } from '../data/types.js'
+import type { Progress } from './series.js'
+import { topicKey, topicsOf } from './topics.js'
+import { onPlatforms } from './platforms.js' // con .js para que la función de madrugada (api/nightly.ts) la cargue en Node
 
 // Recomendador por contenido: aprende pesos de géneros y etiquetas a partir de lo que cada persona
 // marcó como "me gustó" / "no me interesa" / "ya la vi", y los combina con la calidad (nota IMDb).
@@ -18,6 +20,7 @@ export interface Settings {
   platforms: string[] // vacío = todas
   vetoes?: Record<string, string[]> // géneros que cada persona nunca quiere ver, por su clave
   nights?: Night[] // las últimas noches elegidas, para repartir los turnos
+  progress?: Record<string, Progress> // series: último episodio que vieron juntos, por id de título
 }
 
 const key = (k: 'g' | 't', v: string) => `${k}:${v}`
@@ -65,7 +68,13 @@ export function eligible(t: Title, s: Settings, votes: Votes[]): boolean {
 }
 
 // Vetos: lo que alguno de los dos nunca quiere ver no sale en nada de lo compartido
-export const isVetoed = (t: Title, genres: string[]) => t.genres.some((g) => genres.includes(g))
+// Un veto es un género ("Terror") o un tema ("tema:animales"). Lo guardado antes de los temas no los trae:
+// ahí se buscan en sus etiquetas.
+export const isVetoed = (t: Title, vetoes: string[]) => {
+  if (t.genres.some((g) => vetoes.includes(g))) return true
+  const topics = t.topics ?? topicsOf(t.tags)
+  return topics.some((id) => vetoes.includes(topicKey(id)))
+}
 export const allVetoes = (s: Settings) => [...new Set(Object.values(s.vetoes ?? {}).flat())]
 export const sharedPool = (catalog: Title[], s: Settings) => {
   const v = allVetoes(s)
