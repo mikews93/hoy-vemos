@@ -5,6 +5,7 @@ import { decideFor, type Who } from '../lib/recommender'
 import { fitsTonight, TIME_LABELS, useTonight, WHO_LABELS, type Company, type TimeBudget } from '../lib/tonight'
 import { Icon, Poster, metaLine, scoreLabel } from './ui'
 import type { Title } from '../data/types'
+import { episodeLabel, nextUp } from '../lib/series'
 
 /** Chips de "¿cuánto tiempo tienen?" y "¿quiénes ven?" */
 export function TonightBar() {
@@ -37,8 +38,13 @@ function useBoost(): Record<string, number> {
     s.daily?.together.forEach((id) => (boost[id] = 1))
     s.myList.filter((id) => !s.watched.includes(id)).forEach((id) => (boost[id] = (boost[id] ?? 0) + 1.5))
     s.votes.a.liked.filter((id) => s.votes.b.liked.includes(id)).forEach((id) => (boost[id] = (boost[id] ?? 0) + 3))
+    // una serie que ya van viendo es la propuesta más fácil para esta noche
+    Object.entries(s.settings.progress ?? {}).forEach(([id, p]) => {
+      const t = s.byId.get(id)
+      if (t && nextUp(t, p).kind === 'episode') boost[id] = (boost[id] ?? 0) + 2.5
+    })
     return boost
-  }, [s.daily, s.myList, s.watched, s.votes])
+  }, [s.daily, s.myList, s.watched, s.votes, s.settings.progress, s.byId])
 }
 
 export function useTonightPicks(rewatch = false): Title[] {
@@ -69,7 +75,9 @@ export function DecideSheet({ onClose }: { onClose: () => void }) {
 
   const pick = picks[idx % Math.max(picks.length, 1)]
   const backups = picks.length > 1 ? [1, 2].map((k) => picks[(idx + k) % picks.length]).filter((t, i, all) => t && t !== pick && all.indexOf(t) === i) : []
-  const why = pick && (rewatch ? 'Ya la vieron y les encantó.' : s.daily?.reasons[pick.id])
+  const progress = pick && s.settings.progress?.[pick.id]
+  const up = pick && progress ? nextUp(pick, progress) : undefined
+  const why = pick && (up?.kind === 'episode' ? `Ya la van viendo: les toca el ${episodeLabel(up.ep)}.` : rewatch ? 'Ya la vieron y les encantó.' : s.daily?.reasons[pick.id])
 
   return (
     <div className="overlay decide" role="dialog" aria-modal="true" aria-label="Decide tú">

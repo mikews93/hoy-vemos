@@ -81,6 +81,8 @@ interface Detail {
   runtime?: number
   episode_run_time?: number[]
   number_of_seasons?: number
+  seasons?: { season_number: number; episode_count: number; air_date?: string | null }[]
+  next_episode_to_air?: { air_date?: string; season_number: number; episode_number: number } | null
   overview: string
   genres: { name: string }[]
   poster_path?: string
@@ -160,6 +162,17 @@ async function omdb(imdbId: string): Promise<Scores | null> {
 // Sin OMDb se usa la nota de TMDB como aproximación
 const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc })
 
+// Temporadas ya estrenadas (sin la de especiales) y el próximo episodio, para el seguimiento de series
+function seriesProgressData(d: Detail): Pick<Title, 'episodes' | 'nextEpisode'> {
+  const now = new Date().toISOString().slice(0, 10)
+  const aired = (d.seasons ?? []).filter((s) => s.season_number > 0 && s.episode_count > 0 && s.air_date && s.air_date <= now).sort((a, b) => a.season_number - b.season_number)
+  const next = d.next_episode_to_air
+  return {
+    episodes: aired.length ? aired.map((s) => s.episode_count) : undefined,
+    nextEpisode: next?.air_date ? { date: next.air_date, season: next.season_number, episode: next.episode_number } : undefined,
+  }
+}
+
 async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   const d = await tmdb<Detail>(`/${kind}/${id}`, { append_to_response: 'external_ids,videos,credits,keywords,watch/providers' })
   const imdbId = d.imdb_id || d.external_ids?.imdb_id
@@ -181,6 +194,7 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
     year: Number((d.release_date ?? d.first_air_date ?? '0').slice(0, 4)),
     runtime: d.runtime ?? d.episode_run_time?.[0],
     seasons: d.number_of_seasons,
+    ...(kind === 'tv' ? seriesProgressData(d) : {}),
     genres: d.genres.map((g) => g.name),
     tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
     country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',

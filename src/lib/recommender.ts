@@ -1,4 +1,5 @@
 import type { Title, Votes, PersonId } from '../data/types'
+import type { Progress } from './series'
 import { onPlatforms } from './platforms'
 
 // Recomendador por contenido: aprende pesos de géneros y etiquetas a partir de lo que cada persona
@@ -18,6 +19,7 @@ export interface Settings {
   platforms: string[] // vacío = todas
   vetoes?: Record<string, string[]> // géneros que cada persona nunca quiere ver, por su clave
   nights?: Night[] // las últimas noches elegidas, para repartir los turnos
+  progress?: Record<string, Progress> // series: último episodio que vieron juntos, por id de título
 }
 
 const key = (k: 'g' | 't', v: string) => `${k}:${v}`
