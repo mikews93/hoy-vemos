@@ -11,6 +11,7 @@ export interface Ratings {
 export interface Provider {
   name: string
   kind: 'flatrate' | 'rent' | 'buy'
+  logo?: string // URL del logo (TMDB); sin él se dibuja la inicial
 }
 
 export interface Title {
@@ -35,7 +36,7 @@ export interface Title {
   poster?: string // URL de póster (TMDB); sin él se dibuja un póster tipográfico
   backdrop?: string
   trailer?: string // URL de YouTube
-  cast?: { name: string; role: string }[]
+  cast?: { name: string; role: string; photo?: string }[] // photo: URL (TMDB); sin ella, la inicial
   color: string // color del póster tipográfico
 }
 
