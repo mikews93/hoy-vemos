@@ -16,7 +16,7 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 - **¿Cuánto tiempo tienen? / ¿Quiénes ven?**: chips en Hoy (sin apuro, menos de 1 h, hasta 2 h; los dos, solo yo, con niños) que filtran Hoy, Pareja, Explorar y "Decide tú". Se guardan por día en el teléfono (`src/lib/tonight.ts`).
 - **Final de tres**: con 3 coincidencias o más, en Pareja cada uno quita una por turno y la que queda es la de la noche.
 - **Turnos justos**: cada noche elegida guarda cuánto le gustaba a cada uno (su posición en el catálogo según sus gustos). Si uno cedió en las últimas noches, la lista del día, "Decide tú" y el final de tres pesan más sus gustos, y Hoy lo dice.
-- **Vetos**: en Perfil, "Lo que nunca quiero ver" por género. Lo vetado por cualquiera de los dos no sale en nada compartido.
+- **Vetos**: en Perfil, "Lo que nunca quiero ver" por género y por tema (muere un animal, suicidio, abuso sexual, mucha sangre, drogas, infidelidad, arañas, pérdida de un embarazo). Los temas salen de las palabras clave de TMDB (`src/lib/topics.ts`), así que algo sin etiquetar puede colarse. Lo vetado por cualquiera de los dos no sale en nada compartido.
 - **Para repetir**: en Mi lista, lo que ya vieron y les encantó.
 - **Recién llegó a sus plataformas**: TMDB no dice cuándo llega o se va un título, así que cada teléfono compara lo de hoy con lo que vio en días anteriores (`src/lib/arrivals.ts`) y muestra los últimos 7 días. Con los avisos activados en Perfil, avisa al abrir la app si llegó algo de Mi lista (no hay avisos con la app cerrada).
 - **Explicación de pareja**: la ficha dice por qué le puede gustar a cada uno.
