@@ -227,15 +227,21 @@ export function buildExplore(catalog: Title[], votes: Record<PersonId, Votes>, s
 }
 
 // Búsqueda por ánimo: coincidencia simple de palabras con géneros, etiquetas y sinopsis
+// Palabras que no dicen nada al buscar: si cuentan, "The Mentalist" empata con todo lo que dice "the"
+const STOP = new Set(['the', 'and', 'los', 'las', 'una', 'uno', 'unos', 'del', 'con', 'por', 'para', 'que', 'algo', 'como', 'mas', 'pero'])
+const plain = (x: string) => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+
 export function moodSearch(catalog: Title[], q: string, s: Settings, votes: Votes[]): Title[] {
-  const words = q.toLowerCase().split(/\s+/).filter((x) => x.length > 2)
+  const words = plain(q).split(/[^a-z0-9ñ]+/).filter((x) => x.length > 2 && !STOP.has(x))
   if (!words.length) return []
-  const short = /corta|corto|100|rápid/.test(q.toLowerCase())
+  const short = /corta|corto|100|rapid/.test(plain(q))
   return catalog
     .filter((t) => eligible(t, s, votes) && (!short || (t.kind === 'movie' ? (t.runtime ?? 999) <= 110 : (t.runtime ?? 99) <= 35)))
     .map((t) => {
-      const hay = [...t.genres, ...t.tags, t.overview, t.title].join(' ').toLowerCase()
-      return { t, s: words.filter((w) => hay.includes(w)).length + quality(t) * 0.1 }
+      // Lo que coincide con el nombre (en español o el original) va primero
+      const name = plain(`${t.title} ${t.originalTitle ?? ''}`)
+      const hay = plain([...t.genres, ...t.tags, t.overview].join(' '))
+      return { t, s: words.reduce((n, w) => n + (name.includes(w) ? 3 : hay.includes(w) ? 1 : 0), 0) + quality(t) * 0.1 }
     })
     .filter((x) => x.s >= 1)
     .sort((a, b) => b.s - a.s)
