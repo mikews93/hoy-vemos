@@ -5,6 +5,7 @@ export interface Ratings {
   imdbVotes?: number // en miles
   rt?: number // % crítica
   mc?: number // 0-100
+  tmdb?: number // 0-10, nota del público en TMDB (para series, donde OMDb casi no trae crítica)
 }
 
 export interface Provider {

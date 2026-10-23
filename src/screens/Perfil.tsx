@@ -11,6 +11,16 @@ import { PushToggle } from '../components/PushToggle'
 import { canPush } from '../lib/push'
 import { TOPICS, TOPIC_PREFIX, topicKey } from '../lib/topics'
 import type { PersonId } from '../data/types'
+import { checkOmdb, type OmdbStatus } from '../data/live'
+
+const OMDB_TEXT: Record<OmdbStatus | 'probando', string> = {
+  probando: 'Probando…',
+  ok: 'OMDb responde bien: las notas de Rotten Tomatoes y Metacritic deberían salir.',
+  'sin-clave': 'Falta la clave de OMDb en el servidor (OMDB_KEY en Vercel).',
+  limite: 'OMDb llegó a su límite de consultas de hoy. Se reinicia en el día; las notas que falten se completan solas.',
+  clave: 'OMDb rechaza la clave: no es válida o no se activó desde el correo de OMDb.',
+  error: 'No se pudo contactar a OMDb. Prueba de nuevo en un rato.',
+}
 
 const canNotify = typeof Notification !== 'undefined'
 const vetoLabel = (v: string) => (v.startsWith(TOPIC_PREFIX) ? TOPICS.find((t) => topicKey(t.id) === v)?.label.toLowerCase() ?? v : v)
@@ -20,6 +30,7 @@ export default function Perfil() {
   const nav = useNavigate()
   const [rating, setRating] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [omdb, setOmdb] = useState<OmdbStatus | 'probando'>()
   const partner: PersonId = s.active === 'a' ? 'b' : 'a'
   const vetoes = useVetoes()
   const genres = useMemo(() => [...new Set(s.catalog.flatMap((t) => t.genres))].sort((a, b) => a.localeCompare(b, 'es')), [s.catalog])
@@ -166,6 +177,12 @@ export default function Perfil() {
       <div className="row-head"><h2 className="h2">Datos</h2></div>
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="sub" style={{ margin: 0 }}>{s.live ? 'Usando datos reales de TMDB.' : 'Modo demostración con catálogo de ejemplo.'}</p>
+        {s.live && (
+          <>
+            <button className="btn" onClick={() => { setOmdb('probando'); void checkOmdb().then(setOmdb) }}>Probar las notas de OMDb</button>
+            {omdb && <p className="sub" style={{ margin: 0 }} aria-live="polite">{OMDB_TEXT[omdb]}</p>}
+          </>
+        )}
         <p className="note" style={{ margin: 0 }}>Esta app usa la API de TMDB, pero no está respaldada ni certificada por TMDB. Notas de IMDb, Rotten Tomatoes y Metacritic vía OMDb; disponibilidad de JustWatch vía TMDB.</p>
         {confirmReset ? (
           <div style={{ display: 'flex', gap: 10 }}>

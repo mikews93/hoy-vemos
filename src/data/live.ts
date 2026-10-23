@@ -14,7 +14,7 @@ const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
 const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
-const CACHE_KEY = 'hv.liveCatalog.v3'
+const CACHE_KEY = 'hv.liveCatalog.v4'
 const EXTRA_KEY = 'hv.extraTitles.v2'
 const TASTE_KEY = 'hv.tasteTitles.v1'
 const SCORES_KEY = 'hv.scores.v1'
@@ -162,7 +162,7 @@ async function omdb(imdbId: string): Promise<Scores | null> {
 }
 
 // Sin OMDb se usa la nota de TMDB como aproximación
-const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc })
+const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc, tmdb: base.tmdb })
 
 // Temporadas ya estrenadas (sin la de especiales) y el próximo episodio, para el seguimiento de series
 function seriesProgressData(d: Detail): Pick<Title, 'episodes' | 'nextEpisode'> {
@@ -179,7 +179,8 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   const d = await tmdb<Detail>(`/${kind}/${id}`, { append_to_response: 'external_ids,videos,credits,keywords,watch/providers' })
   const imdbId = d.imdb_id || d.external_ids?.imdb_id
   const scores = imdbId ? await omdb(imdbId) : {}
-  const tmdbRatings: Ratings = { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) }
+  const tmdbScore = Math.round(d.vote_average * 10) / 10
+  const tmdbRatings: Ratings = { imdb: tmdbScore, imdbVotes: Math.round(d.vote_count / 1000), tmdb: d.vote_count ? tmdbScore : undefined }
   const wp = d['watch/providers']?.results?.[REGION]
   const providers: Provider[] = [
     ...(wp?.flatrate ?? []).map((p) => ({ name: p.provider_name, kind: 'flatrate' as const })),
@@ -310,6 +311,47 @@ export async function fillScores(current: LiveCatalog, max = 60): Promise<LiveCa
   const next: LiveCatalog = { ...current, items: current.items.map((t) => fixed.get(t.id) ?? t) }
   writeCache({ ...next, at: readCache()?.at ?? Date.now() })
   return next
+}
+
+interface Search { results: { id: number; media_type: string; poster_path?: string }[] }
+const searches = new Map<string, Promise<Title[]>>()
+
+// Búsqueda por nombre en todo TMDB (no solo en el catálogo del día): para encontrar algo puntual,
+// aunque ya lo hayan visto o no pase los filtros. Pocas por búsqueda porque cada una gasta OMDb.
+export function searchTitles(q: string, max = 6): Promise<Title[]> {
+  const key = q.trim().toLowerCase()
+  if (!hasLiveData || key.length < 3) return Promise.resolve([])
+  if (!searches.has(key)) {
+    const run = tmdb<Search>('/search/multi', { query: key, include_adult: 'false' }).then(async (res) => {
+      const hits = res.results.filter((r) => (r.media_type === 'movie' || r.media_type === 'tv') && r.poster_path).slice(0, max)
+      const items = await Promise.allSettled(hits.map((r, i) => toTitle(r.media_type as Kind, r.id, i)))
+      return items.flatMap((x) => (x.status === 'fulfilled' ? [x.value] : []))
+    })
+    run.catch(() => searches.delete(key))
+    searches.set(key, run)
+  }
+  return searches.get(key)!
+}
+
+export type OmdbStatus = 'ok' | 'sin-clave' | 'limite' | 'clave' | 'error'
+
+// Prueba de la clave de OMDb que está en el servidor (Perfil → Datos), para saber por qué faltan notas
+export async function checkOmdb(): Promise<OmdbStatus> {
+  if (!PROXY && !OMDB) return 'sin-clave'
+  try {
+    const url = PROXY ? `/api/omdb?i=tt0903747&prueba=1` : `https://www.omdbapi.com/?i=tt0903747&apikey=${OMDB}`
+    const res = await fetch(url, { cache: 'no-store' })
+    // si no llega JSON (por ejemplo, la pantalla de inicio de sesión de Vercel en una vista previa) no se sabe nada de la clave
+    const d = (await res.json().catch(() => null)) as Omdb | null
+    if (!d) return 'error'
+    if (res.ok && d.Response === 'True') return 'ok'
+    if (res.ok && !d.Response) return 'sin-clave' // el proxy responde {} cuando falta OMDB_KEY en Vercel
+    if (/limit/i.test(d.Error ?? '')) return 'limite'
+    if (/key/i.test(d.Error ?? '') || res.status === 401) return 'clave'
+    return 'error'
+  } catch {
+    return 'error'
+  }
 }
 
 // Títulos guardados (Mi lista, listas anteriores) que ya no salen en el catálogo del día: se traen uno por uno
