@@ -79,8 +79,15 @@ export default function Ficha() {
 
       <div className="pad score-grid" style={{ marginTop: 24 }}>
         <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>IMDb</span><b style={{ color: 'var(--gold)' }}>{t.ratings.imdb?.toFixed(1) ?? '–'}</b><span className="note">{t.ratings.imdbVotes ? `${t.ratings.imdbVotes} mil votos` : 'de 10'}</span></div>
-        <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>Rotten T.</span><b>{t.ratings.rt != null ? `${t.ratings.rt}%` : '–'}</b><span className="note">crítica</span></div>
-        <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>Metacritic</span><b>{t.ratings.mc ?? '–'}</b><span className="note">de 100</span></div>
+        {t.ratings.rt == null && t.ratings.mc == null && t.ratings.tmdb != null ? (
+          // OMDb casi nunca trae crítica para series: en su lugar va la nota del público en TMDB
+          <div className="score" style={{ gridColumn: 'span 2' }}><span className="eyebrow" style={{ fontSize: 11 }}>TMDB</span><b>{t.ratings.tmdb.toFixed(1)}</b><span className="note">público, de 10</span></div>
+        ) : (
+          <>
+            <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>Rotten T.</span><b>{t.ratings.rt != null ? `${t.ratings.rt}%` : '–'}</b><span className="note">crítica</span></div>
+            <div className="score"><span className="eyebrow" style={{ fontSize: 11 }}>Metacritic</span><b>{t.ratings.mc ?? '–'}</b><span className="note">de 100</span></div>
+          </>
+        )}
       </div>
 
       {why && (

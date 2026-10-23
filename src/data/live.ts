@@ -13,7 +13,7 @@ const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
 const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
-const CACHE_KEY = 'hv.liveCatalog.v3'
+const CACHE_KEY = 'hv.liveCatalog.v4'
 const EXTRA_KEY = 'hv.extraTitles.v2'
 const SCORES_KEY = 'hv.scores.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
@@ -158,13 +158,14 @@ async function omdb(imdbId: string): Promise<Scores | null> {
 }
 
 // Sin OMDb se usa la nota de TMDB como aproximación
-const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc })
+const withScores = (base: Ratings, s: Scores): Ratings => ({ imdb: s.imdb ?? base.imdb, imdbVotes: s.imdbVotes ?? base.imdbVotes, rt: s.rt, mc: s.mc, tmdb: base.tmdb })
 
 async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   const d = await tmdb<Detail>(`/${kind}/${id}`, { append_to_response: 'external_ids,videos,credits,keywords,watch/providers' })
   const imdbId = d.imdb_id || d.external_ids?.imdb_id
   const scores = imdbId ? await omdb(imdbId) : {}
-  const tmdbRatings: Ratings = { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) }
+  const tmdbScore = Math.round(d.vote_average * 10) / 10
+  const tmdbRatings: Ratings = { imdb: tmdbScore, imdbVotes: Math.round(d.vote_count / 1000), tmdb: d.vote_count ? tmdbScore : undefined }
   const wp = d['watch/providers']?.results?.[REGION]
   const providers: Provider[] = [
     ...(wp?.flatrate ?? []).map((p) => ({ name: p.provider_name, kind: 'flatrate' as const })),
