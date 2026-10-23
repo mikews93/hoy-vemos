@@ -22,6 +22,7 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 - **Explicación de pareja**: la ficha dice por qué le puede gustar a cada uno.
 - **Ánimo con IA**: en Explorar, "Buscar con IA" entiende pedidos como "algo como Dark pero más corto" (`api/mood.ts`, necesita `ANTHROPIC_API_KEY` en Vercel). Sin la clave queda la búsqueda por palabras.
 - **Seguimiento de series**: en la ficha de una serie, "Su avance" muestra por dónde van, el botón "Vimos el T2 · E6" y las temporadas para marcar de un toque. Hoy muestra "Seguir viendo" con el próximo episodio, y "Decide tú" prefiere lo que ya van viendo. Al terminar la última temporada queda como vista; si la serie sigue, dice cuándo sale el próximo episodio. El avance es del hogar (`settings.progress`) y los episodios vienen de TMDB (`src/lib/series.ts`).
+- **Importar historial**: en Perfil (y al final de la bienvenida) se sube el ratings.csv de IMDb o de Letterboxd. Todo cuenta como visto; 7 o más de 10 cuenta como "me gustó" y 4 o menos como "no me interesa". Lo ya calificado en la app no se pisa. Los títulos que no están en el catálogo se traen livianos desde TMDB (sin gastar OMDb) solo para aprender gustos (`src/lib/importHistory.ts`).
 - **Noche con invitados**: de 3 a 6 personas votan sí o no a las mismas 8 propuestas pasándose el teléfono; gana la de más "sí". No cuenta para los gustos ni los turnos de la pareja.
 
 ## Correrla
@@ -86,7 +87,6 @@ Cada push a `main` se publica solo; cada PR tiene su vista previa.
 ## Pendiente (siguientes pasos)
 
 - Proceso nocturno en servidor que arme la lista de madrugada y use el dataset oficial `title.ratings.tsv` de IMDb.
-- Importar historial desde IMDb o Letterboxd (CSV).
 - Avisos con la app cerrada (necesitan un proceso en servidor y notificaciones push).
 
 Diseño: lienzo "Recomendador – Diseño de interfaces" (estilo "Sala oscura").
