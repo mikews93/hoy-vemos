@@ -9,6 +9,18 @@ const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
 export const hasCloud = Boolean(URL && KEY)
 
+// Un enlace del correo vencido o ya usado vuelve con #error=…&error_code=otp_expired (o ?error=).
+// Se lee antes de que arranque el router, se limpia la URL y la pantalla de entrar lo explica.
+export const linkError = (() => {
+  const params = new URLSearchParams(`${location.search.slice(1)}&${location.hash.replace(/^#\/?/, '')}`)
+  const code = params.get('error_code') ?? params.get('error')
+  if (!code) return null
+  history.replaceState(null, '', `${location.pathname}#/`)
+  return /otp_expired|access_denied/.test(code)
+    ? 'Ese enlace ya no sirve: venció o se usó, o llegó un correo más nuevo. Entra con tu contraseña o pide otro correo abajo.'
+    : params.get('error_description') ?? 'No se pudo abrir el enlace del correo.'
+})()
+
 // PKCE: el enlace de confirmación vuelve con ?code= y no choca con las rutas en el hash (#/...)
 export const supabase = hasCloud ? createClient(URL!, KEY!, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true } }) : null
 
