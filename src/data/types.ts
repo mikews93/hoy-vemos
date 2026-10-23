@@ -24,6 +24,7 @@ export interface Title {
   nextEpisode?: { date: string; season: number; episode: number } // series: el próximo que se estrena
   genres: string[]
   tags: string[]
+  topics?: string[] // temas delicados detectados en sus palabras clave (src/lib/topics.ts)
   country: string
   overview: string
   ratings: Ratings

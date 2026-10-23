@@ -1,5 +1,6 @@
 import type { Title, Kind, Provider, Ratings } from './types'
 import type { MoodFilter } from '../lib/recommender'
+import { topicsOf } from '../lib/topics.js'
 
 // Datos reales: TMDB (catálogo, pósters, tráileres, dónde ver) + OMDb (IMDb, Rotten Tomatoes, Metacritic).
 // Dos formas de conectarse:
@@ -198,6 +199,7 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
     ...(kind === 'tv' ? seriesProgressData(d) : {}),
     genres: d.genres.map((g) => g.name),
     tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
+    topics: topicsOf(kw.map((k) => k.name)),
     country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',
     overview: d.overview,
     ratings: withScores(tmdbRatings, scores ?? {}),
@@ -388,6 +390,7 @@ export async function loadTasteTitles(ids: string[]): Promise<Title[]> {
           seasons: d.number_of_seasons,
           genres: d.genres.map((g) => g.name),
           tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
+    topics: topicsOf(kw.map((k) => k.name)),
           country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',
           overview: d.overview,
           ratings: { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) },

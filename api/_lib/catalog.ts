@@ -1,6 +1,7 @@
 // Catálogo del lado del servidor para el proceso de madrugada: las mismas cuatro listas de TMDB que usa la app,
 // con la nota de TMDB como aproximación (la app completa las de IMDb/OMDb al abrirse).
 import type { Kind, Provider, Title } from '../../src/data/types.js'
+import { topicsOf } from '../../src/lib/topics.js'
 
 const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } }).process.env
 const REGION = env.VITE_REGION || 'CO'
@@ -64,6 +65,7 @@ export async function titleById(id: string): Promise<Title> {
     nextEpisode: kind === 'tv' && next?.air_date ? { date: next.air_date, season: next.season_number, episode: next.episode_number } : undefined,
     genres: d.genres.map((g) => g.name),
     tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
+    topics: topicsOf(kw.map((k) => k.name)),
     country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',
     overview: d.overview,
     ratings: { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) },

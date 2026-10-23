@@ -9,9 +9,11 @@ import { useVetoes } from '../lib/actions'
 import { ImportHistory } from '../components/ImportHistory'
 import { PushToggle } from '../components/PushToggle'
 import { canPush } from '../lib/push'
+import { TOPICS, TOPIC_PREFIX, topicKey } from '../lib/topics'
 import type { PersonId } from '../data/types'
 
 const canNotify = typeof Notification !== 'undefined'
+const vetoLabel = (v: string) => (v.startsWith(TOPIC_PREFIX) ? TOPICS.find((t) => topicKey(t.id) === v)?.label.toLowerCase() ?? v : v)
 
 export default function Perfil() {
   const s = useStore()
@@ -109,8 +111,9 @@ export default function Perfil() {
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="sub" style={{ margin: 0 }}>
           Lo que marques no sale en la lista de hoy, en Pareja ni en Explorar.
-          {!s.guest && partnerVetoes.length > 0 && ` ${s.people[partner].name} vetó: ${partnerVetoes.join(', ')}.`}
+          {!s.guest && partnerVetoes.length > 0 && ` ${s.people[partner].name} vetó: ${partnerVetoes.map(vetoLabel).join(', ')}.`}
         </p>
+        <span className="eyebrow" style={{ fontSize: 11 }}>Géneros</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
           {genres.map((g) => (
             <button key={g} className={`chip${mine.includes(g) ? ' coral on' : ''}`} aria-pressed={mine.includes(g)} onClick={() => toggleVeto(g)}>
@@ -118,6 +121,18 @@ export default function Perfil() {
             </button>
           ))}
         </div>
+        <span className="eyebrow" style={{ fontSize: 11, marginTop: 6 }}>Temas</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {TOPICS.map((t) => {
+            const on = mine.includes(topicKey(t.id))
+            return (
+              <button key={t.id} className={`chip${on ? ' coral on' : ''}`} aria-pressed={on} onClick={() => toggleVeto(topicKey(t.id))}>
+                {on ? `Sin: ${t.label.toLowerCase()}` : t.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="note" style={{ margin: 0 }}>Los temas se detectan con las etiquetas de TMDB; si un título no está etiquetado, puede colarse.</p>
       </div>
 
       {canNotify && s.live && (
