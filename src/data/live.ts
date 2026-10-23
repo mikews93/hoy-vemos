@@ -323,7 +323,9 @@ export async function checkOmdb(): Promise<OmdbStatus> {
   try {
     const url = PROXY ? `/api/omdb?i=tt0903747&prueba=1` : `https://www.omdbapi.com/?i=tt0903747&apikey=${OMDB}`
     const res = await fetch(url, { cache: 'no-store' })
-    const d = (await res.json().catch(() => ({}))) as Omdb
+    // si no llega JSON (por ejemplo, la pantalla de inicio de sesión de Vercel en una vista previa) no se sabe nada de la clave
+    const d = (await res.json().catch(() => null)) as Omdb | null
+    if (!d) return 'error'
     if (res.ok && d.Response === 'True') return 'ok'
     if (res.ok && !d.Response) return 'sin-clave' // el proxy responde {} cuando falta OMDB_KEY en Vercel
     if (/limit/i.test(d.Error ?? '')) return 'limite'
