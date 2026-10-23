@@ -5,6 +5,7 @@ import { forPerson } from '../lib/recommender'
 import { fitsTonight, useTonight } from '../lib/tonight'
 import { notifyArrivals, trackArrivals } from '../lib/arrivals'
 import { DecideSheet, TonightBar } from '../components/Tonight'
+import { episodeLabel, nextUp } from '../lib/series'
 import { Icon, Rail, Section, metaLine, scoreLabel } from '../components/ui'
 import { TrailerModal } from '../components/Trailer'
 import type { Title } from '../data/types'
@@ -25,8 +26,22 @@ export default function Hoy() {
   const allowed = useMemo(() => new Set(s.pool.map((t) => t.id)), [s.pool])
   const fits = (t: Title) => allowed.has(t.id) && passes(t, filter) && fitsTonight(t, tonight)
 
+  // Series que van viendo y tienen un episodio nuevo por ver, la última que tocaron primero
+  const following = useMemo(() => {
+    const progress = s.settings.progress ?? {}
+    return Object.entries(progress)
+      .sort(([, x], [, y]) => y.at.localeCompare(x.at))
+      .map(([id, p]) => {
+        const t = s.byId.get(id)
+        const up = t && nextUp(t, p)
+        return t && up?.kind === 'episode' ? { t, label: `Sigue ${episodeLabel(up.ep)}` } : null
+      })
+      .filter((x): x is { t: Title; label: string } => Boolean(x))
+  }, [s.settings.progress, s.byId])
+  const inProgress = new Set(Object.keys(s.settings.progress ?? {}))
+
   const picks = useMemo(() => (s.daily?.together ?? []).map((id) => s.byId.get(id)).filter(Boolean) as Title[], [s.daily, s.byId])
-  const visible = picks.filter((t) => fits(t) && !s.votes.a.seen.includes(t.id) && !s.votes.b.seen.includes(t.id))
+  const visible = picks.filter((t) => fits(t) && !inProgress.has(t.id) && !s.votes.a.seen.includes(t.id) && !s.votes.b.seen.includes(t.id))
   const [hero, ...rest] = visible
 
   const matches = useMemo(
@@ -84,6 +99,12 @@ export default function Hoy() {
         {s.turn && !s.guest && <span className="note" style={{ fontSize: 12, color: 'var(--text-2)' }}>Hoy pesan más los gustos de {s.people[s.turn].name}: la última vez cedió.</span>}
       </div>
       <TonightBar />
+
+      {following.length > 0 && (
+        <Section title="Seguir viendo" sub="El próximo episodio de lo que van viendo">
+          <Rail items={following.map((f) => f.t)} labels={Object.fromEntries(following.map((f) => [f.t.id, f.label]))} />
+        </Section>
+      )}
 
       {s.guest && (
         <div className="banner">Esta lista es solo con tus gustos. <Link to="/pareja">Elige con tu pareja</Link> creando una cuenta.</div>
