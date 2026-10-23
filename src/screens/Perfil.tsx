@@ -7,6 +7,8 @@ import { Invite } from '../components/Invite'
 import { AccountButtons } from '../components/Account'
 import { useVetoes } from '../lib/actions'
 import { ImportHistory } from '../components/ImportHistory'
+import { PushToggle } from '../components/PushToggle'
+import { canPush } from '../lib/push'
 import type { PersonId } from '../data/types'
 
 const canNotify = typeof Notification !== 'undefined'
@@ -122,6 +124,10 @@ export default function Perfil() {
         <>
           <div className="row-head"><h2 className="h2">Avisos</h2></div>
           <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {s.cloud && canPush() ? (
+              <PushToggle />
+            ) : (
+            <>
             <p className="sub" style={{ margin: 0 }}>Te avisamos en este teléfono cuando algo de Mi lista llega a sus plataformas. El aviso sale al abrir la app.</p>
             {notify === 'granted' ? (
               <span className="sub" style={{ margin: 0, color: 'var(--ok)' }}>Avisos activados en este teléfono.</span>
@@ -130,13 +136,15 @@ export default function Perfil() {
             ) : (
               <button className="btn" onClick={askNotify}>Activar avisos</button>
             )}
+            </>
+            )}
           </div>
         </>
       )}
 
       <div className="row-head"><h2 className="h2">Lista de hoy</h2></div>
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <p className="sub" style={{ margin: 0 }}>Se arma sola cada día al abrir la app. Si cambiaste filtros o gustos, puedes rehacerla ahora.</p>
+        <p className="sub" style={{ margin: 0 }}>{s.cloud ? 'Se arma sola cada madrugada.' : 'Se arma sola cada día al abrir la app.'} Si cambiaste filtros o gustos, puedes rehacerla ahora.</p>
         <button className="btn" onClick={() => { s.refreshDaily(); nav('/') }}>Rehacer la lista de hoy</button>
       </div>
 

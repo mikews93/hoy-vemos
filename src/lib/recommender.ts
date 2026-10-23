@@ -1,6 +1,6 @@
-import type { Title, Votes, PersonId } from '../data/types'
-import type { Progress } from './series'
-import { onPlatforms } from './platforms'
+import type { Title, Votes, PersonId } from '../data/types.js'
+import type { Progress } from './series.js'
+import { onPlatforms } from './platforms.js' // con .js para que la función de madrugada (api/nightly.ts) la cargue en Node
 
 // Recomendador por contenido: aprende pesos de géneros y etiquetas a partir de lo que cada persona
 // marcó como "me gustó" / "no me interesa" / "ya la vi", y los combina con la calidad (nota IMDb).
