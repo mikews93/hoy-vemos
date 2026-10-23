@@ -5,14 +5,15 @@ import { Icon } from '../components/ui'
 
 // Entrar o crear cuenta con Google, con un enlace al correo (sin contraseña) o con correo y contraseña. Se abre encima de la app cuando algo necesita cuenta (reason dice qué).
 // Si llegó con un enlace de invitación, al entrar queda unido a su pareja. Lo que hizo sin cuenta pasa a la cuenta.
-export default function Login({ reason, initialMode, onClose }: { reason?: string; initialMode?: LoginMode; onClose: () => void }) {
+export default function Login({ reason, initialMode, notice, onClose }: { reason?: string; initialMode?: LoginMode; notice?: string; onClose: () => void }) {
   const invited = Boolean(pendingInvite.get())
-  const [mode, setMode] = useState<LoginMode>(invited ? 'up' : initialMode ?? 'up')
+  const [mode, setMode] = useState<LoginMode>(notice ? 'in' : invited ? 'up' : initialMode ?? 'up')
   const [name, setName] = useState(guestName)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(null)
+  const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(notice ? { text: notice } : null)
+  const [unconfirmed, setUnconfirmed] = useState(Boolean(notice))
   const [google, setGoogle] = useState(false)
 
   // El botón de Google solo aparece cuando el proveedor está activado en Supabase
@@ -62,11 +63,36 @@ export default function Login({ reason, initialMode, onClose }: { reason?: strin
     setBusy(false)
     if (res.error) {
       const m = res.error.message
-      setMsg({ text: /invalid login/i.test(m) ? 'Correo o contraseña incorrectos.' : /already registered/i.test(m) ? 'Ese correo ya tiene cuenta. Entra con tu contraseña.' : m })
+      const notConfirmed = /not confirmed/i.test(m)
+      setUnconfirmed(notConfirmed)
+      setMsg({
+        text: /invalid login/i.test(m)
+          ? 'Correo o contraseña incorrectos.'
+          : notConfirmed
+            ? 'Falta confirmar tu correo. Abre el correo más reciente de Hoy Vemos, o pide uno nuevo abajo.'
+            : /already registered/i.test(m)
+              ? 'Ese correo ya tiene cuenta. Entra con tu contraseña.'
+              : /rate limit/i.test(m)
+                ? 'Se enviaron muchos correos seguidos. Prueba en un rato.'
+                : m,
+      })
       return
     }
     // Con "confirmar correo" activo en Supabase no hay sesión hasta que abra el enlace
-    if (mode === 'up' && !res.data.session) setMsg({ text: 'Te enviamos un correo para confirmar la cuenta. Ábrelo en este teléfono.', ok: true })
+    if (mode === 'up' && !res.data.session) {
+      setUnconfirmed(true)
+      setMsg({ text: 'Te enviamos un correo para confirmar la cuenta. Ábrelo en este teléfono; si pides otro, solo sirve el más reciente.', ok: true })
+    }
+  }
+
+  // Cada correo nuevo anula el enlace del anterior
+  const resend = async () => {
+    if (!supabase) return
+    if (!email.trim()) return setMsg({ text: 'Escribe tu correo arriba y vuelve a tocar aquí.' })
+    setBusy(true)
+    const { error } = await supabase.auth.resend({ type: 'signup', email: email.trim(), options: { emailRedirectTo: back() } })
+    setBusy(false)
+    setMsg(error ? { text: /rate limit|security purposes/i.test(error.message) ? 'Espera un minuto antes de pedir otro correo.' : error.message } : { text: 'Listo, te enviamos un correo nuevo. Abre ese, los anteriores ya no sirven.', ok: true })
   }
 
   const reset = async () => {
@@ -109,6 +135,7 @@ export default function Login({ reason, initialMode, onClose }: { reason?: strin
           <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} minLength={6} required />
         </label>
         {msg && <p className="sub" role="status" style={{ margin: 0, color: msg.ok ? 'var(--ok)' : 'var(--coral)' }}>{msg.text}</p>}
+        {unconfirmed && <button type="button" className="btn block" onClick={resend} disabled={busy}>Reenviar correo de confirmación</button>}
         <button className="btn gold block" style={{ height: 54, marginTop: 4 }} disabled={busy}>{busy ? 'Un momento…' : mode === 'in' ? 'Entrar' : 'Crear cuenta'}</button>
         <button type="button" className="btn block" style={{ background: 'transparent' }} onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setMsg(null) }}>
           {mode === 'in' ? '¿No tienes cuenta? Crear una' : 'Ya tengo cuenta'}

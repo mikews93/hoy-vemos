@@ -4,7 +4,7 @@ import type { Person, PersonId, Title, Votes } from '../data/types'
 import { DEMO_CATALOG } from '../data/demo'
 import { fillScores, hasLiveData, loadLiveCatalog, loadMoreLive, loadTasteTitles, loadTitles, type LiveCatalog } from '../data/live'
 import { buildDaily, sharedPool, turnOf, type DailyPicks, type Settings } from './recommender'
-import { hasCloud, pendingInvite, supabase } from './supabase'
+import { hasCloud, linkError, pendingInvite, supabase } from './supabase'
 
 // Estado de la app. Dos modos con la misma interfaz:
 // - Local (sin Supabase): un dispositivo compartido por la pareja, guardado en el navegador.
@@ -321,6 +321,7 @@ export type LoginMode = 'in' | 'up'
 export interface LoginAsk {
   reason?: string // por qué se pide: "Para elegir juntos…"
   mode?: LoginMode
+  notice?: string // aviso que se muestra al abrir, como un enlace vencido
 }
 
 interface Auth {
@@ -347,7 +348,7 @@ function CloudStoreProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   // Con un enlace de invitación se abre directo la pantalla de crear cuenta
-  const [ask, setAsk] = useState<LoginAsk | null>(() => (pendingInvite.get() ? { mode: 'up' } : null))
+  const [ask, setAsk] = useState<LoginAsk | null>(() => (linkError ? { mode: 'in', notice: linkError } : pendingInvite.get() ? { mode: 'up' } : null))
 
   useEffect(() => {
     sb.auth.getSession().then(({ data }) => {

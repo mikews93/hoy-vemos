@@ -33,7 +33,7 @@ function Gate() {
       <App />
       {ask && (
         <div className="login-sheet" role="dialog" aria-modal="true" aria-label="Entrar a Hoy Vemos">
-          <div className="app"><Login reason={ask.reason} initialMode={ask.mode} onClose={closeLogin} /></div>
+          <div className="app"><Login reason={ask.reason} initialMode={ask.mode} notice={ask.notice} onClose={closeLogin} /></div>
         </div>
       )}
     </>
