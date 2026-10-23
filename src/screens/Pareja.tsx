@@ -13,17 +13,22 @@ export default function Pareja() {
   const me: PersonId = s.active
   const partner: PersonId = me === 'a' ? 'b' : 'a'
   const [tonight] = useTonight()
-  // El mazo se calcula una vez por persona para que no se reordene al votar
-  const deck = useMemo(() => buildDeck(s.pool, s.votes[me], s.votes[partner], s.settings).filter((t) => fitsTonight(t, tonight)), [s.pool, me, s.settings, tonight]) // eslint-disable-line react-hooks/exhaustive-deps
+  // El mazo se arma una vez por persona y no se recalcula con cada voto (cada voto cambia s.pool): si se reordenara,
+  // por un instante podía asomar otra tarjeta. Lo votado se saca al mostrar, y también lo que se votó aquí aunque
+  // la nube tarde en confirmarlo, para que no reaparezca algo que ya pasaron o ya vieron.
+  const deck = useMemo(() => buildDeck(s.pool, s.votes[me], s.votes[partner], s.settings).filter((t) => fitsTonight(t, tonight)), [s.catalog, me, s.settings, tonight]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [doneHere, setDoneHere] = useState<string[]>([])
+  const mine = s.votes[me]
+  const done = new Set([...doneHere, ...mine.liked, ...mine.disliked, ...mine.seen, ...mine.passed])
+  const left = deck.filter((t) => !done.has(t.id))
   const [final, setFinal] = useState(false)
-  const [idx, setIdx] = useState(0)
   const [match, setMatch] = useState<Title | null>(null)
   const [drag, setDrag] = useState(0)
   const [trailer, setTrailer] = useState<Title | null>(null)
   const start = useRef<number | null>(null)
 
-  const card = deck[idx]
-  const next = deck[idx + 1]
+  const card = left[0]
+  const next = left[1]
   const matchCount = s.votes.a.liked.filter((id) => s.votes.b.liked.includes(id)).length
   // Coincidencias que aún no vieron, de la que más les gusta a los dos a la que menos: de aquí sale el final de tres
   const finalists = useMemo(() => {
@@ -54,7 +59,7 @@ export default function Pareja() {
     s.vote(card.id, kind, me)
     if (kind === 'liked' && s.votes[partner].liked.includes(card.id)) setMatch(card)
     setDrag(0)
-    setIdx((i) => i + 1)
+    setDoneHere((d) => [...d, card.id])
   }
 
   const onDown = (e: React.PointerEvent) => {
@@ -85,7 +90,7 @@ export default function Pareja() {
       {!s.cloud && (
       <div className="chips" role="group" aria-label="¿Quién está eligiendo?">
         {(['a', 'b'] as PersonId[]).map((p) => (
-          <button key={p} className={`chip${me === p ? (p === 'a' ? ' on' : ' coral on') : ''}`} aria-pressed={me === p} onClick={() => { s.setActive(p); setIdx(0) }}>
+          <button key={p} className={`chip${me === p ? (p === 'a' ? ' on' : ' coral on') : ''}`} aria-pressed={me === p} onClick={() => { s.setActive(p); setDoneHere([]) }}>
             Elige {s.people[p].name}
           </button>
         ))}
@@ -154,7 +159,7 @@ export default function Pareja() {
                 ? `Bajen la nota mínima en Perfil. Cuando ${s.people[partner].name} vote desde su teléfono, sus coincidencias aparecen aquí.`
                 : `Bajen la nota mínima en Perfil o pásale el teléfono a ${s.people[partner].name} para que vote.`}
             </span>
-            {!s.cloud && <button className="btn primary" onClick={() => { s.setActive(partner); setIdx(0) }}>Que elija {s.people[partner].name}</button>}
+            {!s.cloud && <button className="btn primary" onClick={() => { s.setActive(partner); setDoneHere([]) }}>Que elija {s.people[partner].name}</button>}
           </div>
         )}
       </div>

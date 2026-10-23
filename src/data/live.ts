@@ -14,8 +14,9 @@ const OMDB = import.meta.env.VITE_OMDB_KEY as string | undefined
 const PROXY = !TOKEN && import.meta.env.VITE_API_PROXY === '1'
 export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO'
 const IMG = 'https://image.tmdb.org/t/p/'
-const CACHE_KEY = 'hv.liveCatalog.v4'
-const EXTRA_KEY = 'hv.extraTitles.v2'
+const img = (size: string, path?: string | null) => (path ? `${IMG}${size}${path}` : undefined)
+const CACHE_KEY = 'hv.liveCatalog.v5'
+const EXTRA_KEY = 'hv.extraTitles.v3'
 const TASTE_KEY = 'hv.tasteTitles.v1'
 const SCORES_KEY = 'hv.scores.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
@@ -96,10 +97,12 @@ interface Detail {
   external_ids?: { imdb_id?: string }
   imdb_id?: string
   videos?: { results: { site: string; type: string; key: string }[] }
-  credits?: { cast: { name: string; character: string }[]; crew: { name: string; job: string }[] }
+  credits?: { cast: { name: string; character: string; profile_path?: string | null }[]; crew: { name: string; job: string; profile_path?: string | null }[] }
   keywords?: { keywords?: { name: string }[]; results?: { name: string }[] }
-  'watch/providers'?: { results: Record<string, { flatrate?: { provider_name: string }[]; rent?: { provider_name: string }[]; buy?: { provider_name: string }[] }> }
+  'watch/providers'?: { results: Record<string, { flatrate?: ProviderRow[]; rent?: ProviderRow[]; buy?: ProviderRow[] }> }
 }
+
+interface ProviderRow { provider_name: string; logo_path?: string | null }
 
 interface Omdb { Response?: string; Error?: string; imdbRating?: string; imdbVotes?: string; Metascore?: string; Ratings?: { Source: string; Value: string }[] }
 type Scores = Pick<Ratings, 'imdb' | 'imdbVotes' | 'rt' | 'mc'>
@@ -183,8 +186,8 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
   const tmdbRatings: Ratings = { imdb: tmdbScore, imdbVotes: Math.round(d.vote_count / 1000), tmdb: d.vote_count ? tmdbScore : undefined }
   const wp = d['watch/providers']?.results?.[REGION]
   const providers: Provider[] = [
-    ...(wp?.flatrate ?? []).map((p) => ({ name: p.provider_name, kind: 'flatrate' as const })),
-    ...(wp?.rent ?? []).map((p) => ({ name: p.provider_name, kind: 'rent' as const })),
+    ...(wp?.flatrate ?? []).map((p) => ({ name: p.provider_name, kind: 'flatrate' as const, logo: img('w92', p.logo_path) })),
+    ...(wp?.rent ?? []).map((p) => ({ name: p.provider_name, kind: 'rent' as const, logo: img('w92', p.logo_path) })),
   ]
   const trailer = d.videos?.results.find((v) => v.site === 'YouTube' && v.type === 'Trailer')
   const director = d.credits?.crew.find((c) => c.job === 'Director')
@@ -211,8 +214,8 @@ async function toTitle(kind: Kind, id: number, i: number): Promise<Title> {
     backdrop: d.backdrop_path ? `${IMG}w1280${d.backdrop_path}` : undefined,
     trailer: trailer ? `https://www.youtube.com/watch?v=${trailer.key}` : undefined,
     cast: [
-      ...(director ? [{ name: director.name, role: 'Dirección' }] : []),
-      ...(d.credits?.cast ?? []).slice(0, 5).map((c) => ({ name: c.name, role: c.character })),
+      ...(director ? [{ name: director.name, role: 'Dirección', photo: img('w185', director.profile_path) }] : []),
+      ...(d.credits?.cast ?? []).slice(0, 5).map((c) => ({ name: c.name, role: c.character, photo: img('w185', c.profile_path) })),
     ],
     color: COLORS[i % COLORS.length],
   }

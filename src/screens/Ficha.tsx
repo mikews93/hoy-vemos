@@ -118,7 +118,7 @@ export default function Ficha() {
         <div className="panel" style={{ margin: '0 20px' }}>
           {[...flat, ...rent].map((p) => (
             <div className="list-row" key={p.name + p.kind}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#2E2A36', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontFamily: 'var(--display)' }}>{p.name[0]}</div>
+              <Thumb src={p.logo} letter={p.name[0]} size={40} radius={10} style={{ fontWeight: 800, fontFamily: 'var(--display)' }} />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: p.kind === 'flatrate' && mine(p.name) ? 'var(--ok)' : 'var(--muted)' }}>
@@ -142,7 +142,7 @@ export default function Ficha() {
           <div className="rail">
             {t.cast.map((c) => (
               <div key={c.name} style={{ width: 76, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-                <div style={{ width: 64, height: 64, borderRadius: 32, background: '#2E2A36', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{c.name[0]}</div>
+                <Thumb src={c.photo} letter={c.name[0]} size={64} radius={32} style={{ fontWeight: 700 }} />
                 <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{c.name}</span>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{c.role}</span>
               </div>
@@ -152,4 +152,12 @@ export default function Ficha() {
       )}
     </div>
   )
+}
+
+// Logo de plataforma o foto de persona; si no hay imagen (o no carga) queda la inicial
+function Thumb({ src, letter, size, radius, style }: { src?: string; letter: string; size: number; radius: number; style?: React.CSSProperties }) {
+  const [failed, setFailed] = useState(false)
+  const box: React.CSSProperties = { width: size, height: size, borderRadius: radius, background: '#2E2A36', flexShrink: 0 }
+  if (src && !failed) return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} style={{ ...box, objectFit: 'cover', display: 'block' }} />
+  return <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>{letter}</div>
 }
