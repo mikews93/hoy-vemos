@@ -20,6 +20,8 @@ interface Push {
   url: string
 }
 
+const PUSH_HOST = /^https:\/\/(fcm\.googleapis\.com|updates\.push\.services\.mozilla\.com|[a-z0-9.-]+\.notify\.windows\.com|web\.push\.apple\.com|[a-z0-9.-]+\.push\.apple\.com)\//
+
 const emptyVotes = (): Votes => ({ liked: [], disliked: [], seen: [], passed: [] })
 // La fecha del día en Colombia, igual que la que usa la app en el teléfono
 const todayBogota = () => new Date().toLocaleDateString('sv-SE', { timeZone: env.VITE_TIMEZONE || 'America/Bogota' })
@@ -62,7 +64,7 @@ async function runHousehold(sb: Db, h: Household, catalog: Title[], date: string
     sb.from('votes').select('user_id, title_id, kind').eq('household_id', h.id),
     sb.from('list_items').select('title_id, watched_at').eq('household_id', h.id),
     sb.from('daily_lists').select('date').eq('household_id', h.id).eq('date', date).maybeSingle(),
-    sb.from('push_subscriptions').select('endpoint, keys').eq('household_id', h.id),
+    sb.from('push_subscriptions').select('endpoint, keys, user_id').eq('household_id', h.id),
   ])
   const ids = (people.data ?? []).map((p) => p.id as string)
   if (!ids.length || !(people.data ?? []).some((p) => p.onboarded)) return { skipped: 'sin perfiles listos' }
@@ -103,7 +105,10 @@ async function runHousehold(sb: Db, h: Household, catalog: Title[], date: string
   await sb.from('households').update({ provider_snapshot: snapshot }).eq('id', h.id)
 
   let sent = 0
-  for (const sub of subs.data ?? []) {
+  // Solo teléfonos de quienes siguen en este hogar, y solo hacia servicios de avisos conocidos
+  const members = new Set(ids)
+  const deliverable = (subs.data ?? []).filter((sub) => members.has(sub.user_id as string) && PUSH_HOST.test(sub.endpoint as string))
+  for (const sub of deliverable) {
     for (const p of pushes) {
       try {
         await webpush.sendNotification({ endpoint: sub.endpoint as string, keys: sub.keys as { p256dh: string; auth: string } }, JSON.stringify(p))
