@@ -6,6 +6,7 @@ import { RateGrid } from './Onboarding'
 import { Invite } from '../components/Invite'
 import { AccountButtons } from '../components/Account'
 import { useVetoes } from '../lib/actions'
+import { ImportHistory } from '../components/ImportHistory'
 import type { PersonId } from '../data/types'
 
 const canNotify = typeof Notification !== 'undefined'
@@ -82,6 +83,12 @@ export default function Perfil() {
           </div>
         </>
       )}
+
+      <div className="row-head"><h2 className="h2">{s.cloud || s.guest ? 'Traer tu historial' : `Traer el historial de ${s.people[s.active].name}`}</h2></div>
+      <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <p className="sub" style={{ margin: 0 }}>Sube lo que calificaste en IMDb o Letterboxd y la app aprende tus gustos de una vez.</p>
+        <ImportHistory />
+      </div>
 
       <div className="row-head"><h2 className="h2">Plataformas{s.cloud && s.partnerJoined ? ' (de los dos)' : ''}</h2></div>
       <div className="pad" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>

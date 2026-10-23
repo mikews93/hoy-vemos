@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth, useStore } from '../lib/store'
 import { PLATFORMS } from '../data/demo'
 import { Icon } from '../components/ui'
+import { ImportHistory } from '../components/ImportHistory'
 
 const GOAL = 15
 
@@ -106,6 +107,10 @@ export default function Onboarding() {
             <p className="sub" style={{ margin: 0 }}>Con {GOAL} ya armamos una buena primera lista. Si no la viste, déjala sin tocar.</p>
           </div>
           <RateGrid cta="Ver mi lista de hoy" onDone={() => { s.finishOnboarding(); nav('/') }} />
+          <details className="pad" style={{ marginTop: 18 }}>
+            <summary className="sub" style={{ cursor: 'pointer', fontWeight: 600, color: 'var(--gold)' }}>¿Usas IMDb o Letterboxd? Trae tu historial</summary>
+            <div style={{ marginTop: 10 }}><ImportHistory /></div>
+          </details>
         </>
       )}
     </div>

@@ -15,6 +15,7 @@ export const REGION = (import.meta.env.VITE_REGION as string | undefined) || 'CO
 const IMG = 'https://image.tmdb.org/t/p/'
 const CACHE_KEY = 'hv.liveCatalog.v3'
 const EXTRA_KEY = 'hv.extraTitles.v2'
+const TASTE_KEY = 'hv.tasteTitles.v1'
 const SCORES_KEY = 'hv.scores.v1'
 const COLORS = ['#23344A', '#2F4A3A', '#5A2A27', '#3B2E5A', '#6B4E1F', '#1F4A52', '#5C3B2E', '#283040']
 
@@ -329,6 +330,79 @@ export async function loadTitles(ids: string[]): Promise<Title[]> {
   }
   try {
     localStorage.setItem(EXTRA_KEY, JSON.stringify(cache))
+  } catch {
+    // sin espacio: se vuelven a pedir la próxima vez
+  }
+  return ids.map((id) => cache[id]).filter(Boolean)
+}
+
+// ---------- Historial importado (IMDb o Letterboxd) ----------
+// Lo importado ya lo vieron: solo hace falta para aprender sus gustos (géneros y etiquetas), así que se trae
+// la versión liviana de cada título (solo TMDB, sin gastar OMDb) y se guarda aparte del catálogo.
+
+interface Find { movie_results: { id: number }[]; tv_results: { id: number }[] }
+interface SearchResults { results: { id: number; title?: string; original_title?: string; vote_count?: number }[] }
+
+// Un id de IMDb (tt0903747) al id de la app (tv-1396)
+export async function idFromImdb(imdbId: string): Promise<string | null> {
+  const r = await tmdb<Find>(`/find/${imdbId}`, { external_source: 'imdb_id' })
+  if (r.movie_results[0]) return `movie-${r.movie_results[0].id}`
+  if (r.tv_results[0]) return `tv-${r.tv_results[0].id}`
+  return null
+}
+
+// Letterboxd no trae ids: se busca por nombre y año (Letterboxd es casi todo películas)
+export async function idFromName(name: string, year?: number): Promise<string | null> {
+  const r = await tmdb<SearchResults>('/search/movie', { query: name, ...(year ? { year: String(year) } : {}) })
+  // La búsqueda trae homónimos poco vistos primero a veces: se prefiere el nombre exacto y, entre esos, el más votado
+  const same = (x?: string) => x?.trim().toLowerCase() === name.trim().toLowerCase()
+  const exact = r.results.filter((x) => same(x.title) || same(x.original_title))
+  const best = (exact.length ? exact : r.results).sort((a, b) => (b.vote_count ?? 0) - (a.vote_count ?? 0))[0]
+  return best ? `movie-${best.id}` : null
+}
+
+function readTaste(): Record<string, Title> {
+  try {
+    return JSON.parse(localStorage.getItem(TASTE_KEY) ?? '{}') as Record<string, Title>
+  } catch {
+    return {}
+  }
+}
+
+export async function loadTasteTitles(ids: string[]): Promise<Title[]> {
+  const cache = readTaste()
+  const missing = ids.filter((id) => !cache[id] && /^(movie|tv)-\d+$/.test(id))
+  for (let i = 0; i < missing.length; i += 6) {
+    const batch = await Promise.allSettled(
+      missing.slice(i, i + 6).map(async (id, j) => {
+        const [kind, n] = id.split('-')
+        const d = await tmdb<Detail>(`/${kind}/${n}`, { append_to_response: 'keywords' })
+        const kw = d.keywords?.keywords ?? d.keywords?.results ?? []
+        const t: Title = {
+          id,
+          kind: kind as Kind,
+          title: d.title ?? d.name ?? '',
+          originalTitle: d.original_title ?? d.original_name,
+          year: Number((d.release_date ?? d.first_air_date ?? '0').slice(0, 4)),
+          runtime: d.runtime ?? d.episode_run_time?.[0],
+          seasons: d.number_of_seasons,
+          genres: d.genres.map((g) => g.name),
+          tags: kw.slice(0, 12).map((k) => k.name.toLowerCase()),
+          country: d.production_countries?.[0]?.name ?? d.origin_country?.[0] ?? '',
+          overview: d.overview,
+          ratings: { imdb: Math.round(d.vote_average * 10) / 10, imdbVotes: Math.round(d.vote_count / 1000) },
+          providers: [],
+          poster: d.poster_path ? `${IMG}w500${d.poster_path}` : undefined,
+          backdrop: d.backdrop_path ? `${IMG}w1280${d.backdrop_path}` : undefined,
+          color: COLORS[(i + j) % COLORS.length],
+        }
+        return t
+      }),
+    )
+    batch.forEach((b) => b.status === 'fulfilled' && (cache[b.value.id] = b.value))
+  }
+  try {
+    localStorage.setItem(TASTE_KEY, JSON.stringify(cache))
   } catch {
     // sin espacio: se vuelven a pedir la próxima vez
   }
