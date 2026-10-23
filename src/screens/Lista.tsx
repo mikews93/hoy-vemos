@@ -39,7 +39,10 @@ export default function Lista() {
   return (
     <div className="screen">
       <div className="pad">
-        <h1 className="h1">Mi lista</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="h1">Mi lista</h1>
+          <Link to="/resumen" className="chip" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }}>Su {new Date().getFullYear()}</Link>
+        </div>
         <p className="sub">{pending.length ? `${pending.length} por ver${s.cloud && s.partnerJoined ? `, compartida con ${s.people.b.name}` : ''}.` : 'Toca + en cualquier título (en Hoy, en su ficha o en Pareja) para guardarlo aquí.'}</p>
       </div>
       {s.guest && pending.length > 0 && (
