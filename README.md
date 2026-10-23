@@ -25,6 +25,23 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 - **Importar historial**: en Perfil (y al final de la bienvenida) se sube el ratings.csv de IMDb o de Letterboxd. Todo cuenta como visto; 7 o más de 10 cuenta como "me gustó" y 4 o menos como "no me interesa". Lo ya calificado en la app no se pisa. Los títulos que no están en el catálogo se traen livianos desde TMDB (sin gastar OMDb) solo para aprender gustos (`src/lib/importHistory.ts`).
 - **Noche con invitados**: de 3 a 6 personas votan sí o no a las mismas 8 propuestas pasándose el teléfono; gana la de más "sí". No cuenta para los gustos ni los turnos de la pareja.
 
+## Proceso de madrugada y avisos con la app cerrada
+
+`api/nightly.ts` corre cada día a las 4 a. m. de Colombia (Vercel Cron, `vercel.json`). Para cada hogar arma la lista del día si nadie abrió la app todavía, y manda avisos Web Push a los teléfonos que los activaron en Perfil: cuando algo de Mi lista llega a sus plataformas y cuando sale un episodio nuevo de una serie que siguen. En iPhone los avisos solo funcionan con la app agregada a la pantalla de inicio.
+
+Para activarlo:
+
+1. En Supabase → SQL Editor, correr `supabase/migrations/20261023000000_push.sql` (tabla `push_subscriptions` y columna `households.provider_snapshot`).
+2. En Vercel → Settings → Environment Variables:
+
+| Variable | Valor |
+| --- | --- |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → clave `service_role` (secreta, solo servidor) |
+| `CRON_SECRET` | cualquier texto largo al azar; Vercel lo manda al llamar el proceso |
+| `VITE_VAPID_PUBLIC_KEY` y `VAPID_PRIVATE_KEY` | el par que da `npx web-push generate-vapid-keys` |
+
+Sin esas variables el proceso responde 501 y la app sigue armando la lista al abrirse, como antes.
+
 ## Correrla
 
 ```bash

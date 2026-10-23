@@ -1,4 +1,4 @@
-import type { Title } from '../data/types'
+import type { Title } from '../data/types.js'
 
 // Seguimiento de series: por cada serie se guarda el último episodio que vieron juntos.
 // Es del hogar (en los ajustes), porque una serie se sigue en pareja.
