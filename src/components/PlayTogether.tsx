@@ -8,7 +8,8 @@ import type { Title } from '../data/types'
 
 // "Darle play juntos": para cuando cada uno está en su casa. No controla Netflix ni ninguna plataforma
 // (ninguna lo permite); arma una cuenta regresiva que llega al teléfono de la pareja por Supabase Realtime
-// (broadcast: no guarda nada en la base), así los dos le dan play en el mismo segundo.
+// (broadcast: no guarda nada en la base), así los dos le dan play en el mismo segundo. El canal es privado:
+// solo lo escucha y usa quien es del hogar (políticas en supabase/migrations/20261030000000_play_together.sql).
 
 const SECONDS = 10 // tiempo para abrir la plataforma y dejar el título listo
 
@@ -39,11 +40,14 @@ function playChannel(hid: string): RealtimeChannel {
   if (channel) void supabase!.removeChannel(channel.ch)
   // Llega un segundo después de enviarlo como mucho: se descuenta el tiempo que ya pasó para que los dos terminen juntos
   const ch = supabase!
-    .channel(`play-${hid}`)
+    .channel(`play-${hid}`, { config: { private: true } })
     .on('broadcast', { event: 'countdown' }, ({ payload }) => {
-      const p = payload as Omit<Countdown, 'at' | 'mine'> & { sentAt: number; seconds: number }
-      const lag = Math.min(Math.max(Date.now() - p.sentAt, 0), 1000)
-      show({ id: p.id, title: p.title, provider: p.provider, from: p.from, at: Date.now() + p.seconds * 1000 - lag, mine: false })
+      const p = payload as Partial<Omit<Countdown, 'at' | 'mine'> & { sentAt: number; seconds: number }>
+      if (typeof p.title !== 'string' || typeof p.from !== 'string') return
+      const lag = Math.min(Math.max(Date.now() - Number(p.sentAt), 0), 1000) || 0
+      const seconds = Math.min(Math.max(Number(p.seconds) || SECONDS, 3), 30)
+      const text = (x: unknown, n: number) => (typeof x === 'string' ? x.slice(0, n) : undefined)
+      show({ id: String(p.id), title: p.title.slice(0, 120), provider: text(p.provider, 40), from: p.from.slice(0, 40), at: Date.now() + seconds * 1000 - lag, mine: false })
     })
     .subscribe()
   channel = { hid, ch }
