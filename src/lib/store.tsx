@@ -89,6 +89,7 @@ interface Store extends Saved {
   cloud: boolean // cada uno en su teléfono con su cuenta
   guest: boolean // usa la app sin cuenta: Hoy, Explorar, fichas y su lista funcionan; lo de la pareja pide entrar
   partnerJoined: boolean
+  householdId?: string // solo en la nube: el canal de "Darle play juntos"
   inviteCode?: string
   email?: string
   daily: DailyPicks | undefined
@@ -500,6 +501,7 @@ function CloudData({ userId, email, children }: { userId: string; email?: string
       cloud: true,
       guest: false,
       partnerJoined: meta.partnerJoined,
+      householdId: meta.householdId,
       inviteCode: meta.inviteCode,
       email: meta.email,
       // En la nube cada uno vota por sí mismo: un voto "para la pareja" no se guarda

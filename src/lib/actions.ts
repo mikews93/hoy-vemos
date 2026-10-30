@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { learn, satisfaction } from './recommender'
+import { eagerOf, isMissing, learn, satisfaction } from './recommender'
 import { today, useStore } from './store'
 import type { PersonId } from '../data/types'
 import { nextUp, seasonDone, type Episode, type Progress } from './series'
@@ -58,5 +58,48 @@ export function useSeriesProgress() {
       if (t) save(id, seasonDone(t, season))
     },
     reset: (id: string) => save(id, null),
+  }
+}
+
+// "¡Muero por verla!": un "me gusta" con ganas. Se guarda en los ajustes del hogar por persona, como los vetos.
+export function useEager() {
+  const s = useStore()
+  const of = (p: PersonId) => eagerOf(s.settings, s.keys[p], s.votes[p])
+  const set = (id: string, on: boolean, p: PersonId = s.active) => {
+    // en la nube cada uno marca solo lo suyo, igual que los votos
+    if (s.cloud && p !== 'a') return
+    const mine = (s.settings.eager?.[s.keys[p]] ?? []).filter((x) => x !== id)
+    s.setSettings({ eager: { ...s.settings.eager, [s.keys[p]]: on ? [...mine, id].slice(-300) : mine } })
+  }
+  return { of, set }
+}
+
+// Notas privadas del hogar en Mi lista ("nos la recomendó Ana")
+export function useNotes() {
+  const s = useStore()
+  return {
+    of: (id: string) => s.settings.notes?.[id] ?? '',
+    set: (id: string, text: string) => {
+      const { [id]: _old, ...rest } = s.settings.notes ?? {}
+      const clean = text.trim().slice(0, 140)
+      s.setSettings({ notes: clean ? { ...rest, [id]: clean } : rest })
+    },
+  }
+}
+
+// "No estaba ahí": la plataforma no tenía lo que TMDB decía. Se esconde de todo lo compartido por un mes.
+export function useMissing() {
+  const s = useStore()
+  return {
+    of: (id: string) => s.settings.missing?.[id],
+    report: (id: string, platform: string) => {
+      // de paso se olvidan los reportes que ya vencieron, para que los ajustes no crezcan sin fin
+      const live = Object.fromEntries(Object.entries(s.settings.missing ?? {}).filter(([x]) => isMissing(s.settings, x)))
+      s.setSettings({ missing: { ...live, [id]: { p: platform, d: today() } } })
+    },
+    undo: (id: string) => {
+      const { [id]: _old, ...rest } = s.settings.missing ?? {}
+      s.setSettings({ missing: rest })
+    },
   }
 }

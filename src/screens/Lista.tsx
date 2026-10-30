@@ -3,11 +3,18 @@ import { useAuth, useStore } from '../lib/store'
 import { Icon, Rail, metaLine, scoreLabel } from '../components/ui'
 import { rewatchable } from '../lib/recommender'
 import type { Title } from '../data/types'
+import { useNotes } from '../lib/actions'
+import { recentDepartures, type Arrival } from '../lib/arrivals'
+import { onPlatforms, platformOf } from '../lib/platforms'
 
 // Lista compartida "por ver": se guarda con el botón + (en Hoy, la ficha o Pareja) y se marca como vista al verla
-function Row({ t }: { t: Title }) {
+function Row({ t, gone }: { t: Title; gone?: Arrival }) {
   const s = useStore()
+  const notes = useNotes()
+  const note = notes.of(t.id)
   const watched = s.watched.includes(t.id)
+  // Si se fue de una de sus plataformas: ¿sigue en otra de las suyas?
+  const stillOn = gone && t.providers.find((p) => p.kind === 'flatrate' && (platformOf(p.name) ?? p.name) !== gone.provider && onPlatforms(p.name, s.settings.platforms))
   const oneSaw = (['a', 'b'] as const).find((p) => s.votes[p].seen.includes(t.id))
   return (
     <div className="list-row" style={{ gap: 12 }}>
@@ -18,6 +25,12 @@ function Row({ t }: { t: Title }) {
         <span style={{ fontWeight: 700, fontSize: 15 }}>{t.title}</span>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>{scoreLabel(t)} · {metaLine(t)}</span>
         {!watched && oneSaw && <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{s.people[oneSaw].name} ya la vio</span>}
+        {!watched && gone && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--coral)' }}>
+            Se fue de {gone.provider}{stillOn ? `, sigue en ${stillOn.name}` : ''}
+          </span>
+        )}
+        {note && <span style={{ fontSize: 12, color: 'var(--text-2)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note}</span>}
       </Link>
       <button className="btn" style={{ height: 40, fontSize: 13, padding: '0 12px', color: watched ? 'var(--ok)' : undefined }} aria-pressed={watched} onClick={() => s.markWatched(t.id, !watched)}>
         {Icon.check(16)}{watched ? 'Vista' : 'La vimos'}
@@ -35,6 +48,8 @@ export default function Lista() {
   const done = items.filter((t) => s.watched.includes(t.id))
   const past = s.history.slice(1, 8)
   const again = rewatchable(s.pool, s.votes).slice(0, 12)
+  // la última salida de cada título (se calcula al abrir Hoy, comparando con días anteriores)
+  const departures = new Map(recentDepartures().map((a) => [a.id, a]))
 
   return (
     <div className="screen">
@@ -50,7 +65,7 @@ export default function Lista() {
       )}
       {pending.length > 0 && (
         <div className="panel" style={{ margin: '18px 20px 0' }}>
-          {pending.map((t) => <Row key={t.id} t={t} />)}
+          {pending.map((t) => <Row key={t.id} t={t} gone={departures.get(t.id)} />)}
         </div>
       )}
 

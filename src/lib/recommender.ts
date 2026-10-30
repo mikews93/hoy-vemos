@@ -21,6 +21,15 @@ export interface Settings {
   vetoes?: Record<string, string[]> // géneros que cada persona nunca quiere ver, por su clave
   nights?: Night[] // las últimas noches elegidas, para repartir los turnos
   progress?: Record<string, Progress> // series: último episodio que vieron juntos, por id de título
+  eager?: Record<string, string[]> // "¡Muero por verla!" de cada persona, por su clave
+  notes?: Record<string, string> // notas privadas del hogar, por id de título
+  missing?: Record<string, Missing> // "No estaba ahí": lo que abrieron y su plataforma no tenía
+}
+
+// Un reporte de "No estaba ahí": en qué plataforma y qué día (AAAA-MM-DD)
+export interface Missing {
+  p: string
+  d: string
 }
 
 const key = (k: 'g' | 't', v: string) => `${k}:${v}`
@@ -76,10 +85,23 @@ export const isVetoed = (t: Title, vetoes: string[]) => {
   return topics.some((id) => vetoes.includes(topicKey(id)))
 }
 export const allVetoes = (s: Settings) => [...new Set(Object.values(s.vetoes ?? {}).flat())]
+
+// Lo que reportaron como "No estaba ahí" se esconde un mes: TMDB copia los datos de JustWatch, que pueden
+// tardar en corregirse; pasado ese tiempo vuelve a salir por si de verdad llegó.
+const MISSING_DAYS = 30
+export const isMissing = (s: Settings, id: string) => {
+  const m = s.missing?.[id]
+  return Boolean(m) && Date.now() - Date.parse(m!.d) < MISSING_DAYS * 86_400_000
+}
+
 export const sharedPool = (catalog: Title[], s: Settings) => {
   const v = allVetoes(s)
-  return v.length ? catalog.filter((t) => !isVetoed(t, v)) : catalog
+  if (!v.length && !s.missing) return catalog
+  return catalog.filter((t) => !(v.length && isVetoed(t, v)) && !isMissing(s, t.id))
 }
+
+// "¡Muero por verla!": solo cuenta si además le dio "me gusta" (si después lo cambió, deja de contar)
+export const eagerOf = (s: Settings, key: string, v: Votes) => (s.eager?.[key] ?? []).filter((id) => v.liked.includes(id))
 
 // Cuánto le gustaba a alguien lo que vieron, de 0 a 1: qué parte del catálogo le gusta menos que eso.
 // Se usa la posición y no la afinidad cruda porque la afinidad crece con cada voto y no se compara entre dos personas.
@@ -126,6 +148,26 @@ function reasonFor(t: Title, liked: Title[]): string {
   return best ? best.title : ''
 }
 
+// El comodín de la lista del día: una joya muy bien puntuada de géneros que casi no ven, para salir de la burbuja.
+// Su razón empieza siempre igual, así Hoy lo reconoce sin guardar nada más en la lista del día.
+export const WILDCARD = 'Para salir de lo de siempre'
+export const isWildcard = (reason?: string) => Boolean(reason?.startsWith(WILDCARD))
+
+function wildcard(pool: Title[], wa: Weights, wb: Weights, votes: Record<PersonId, Votes>, taken: Set<string>, date: string): { t: Title; genre: string } | undefined {
+  // con pocos votos todo es "fuera de lo de siempre": hace falta conocer un poco sus gustos
+  if (votes.a.liked.length + votes.b.liked.length < 5) return undefined
+  const unknown = (g: string) => (wa.get(key('g', g)) ?? 0) + (wb.get(key('g', g)) ?? 0) <= 0.5
+  const passed = new Set([...votes.a.passed, ...votes.b.passed])
+  // Casi todo lleva "Drama": basta con que al menos la mitad de sus géneros sea algo que casi no ven
+  const best = pool
+    .filter((t) => !taken.has(t.id) && !passed.has(t.id) && (t.ratings.imdb ?? 0) >= 7.8 && t.genres.length > 0)
+    .map((t) => ({ t, novelty: t.genres.filter(unknown).length / t.genres.length }))
+    .filter(({ t, novelty }) => novelty >= 0.5 && affinity(t, wa) > -1 && affinity(t, wb) > -1)
+    .map((x) => ({ ...x, s: x.novelty * 2 + quality(x.t) + dayNoise(x.t.id, date) * 2 }))
+    .sort((x, y) => y.s - x.s)[0]
+  return best && { t: best.t, genre: best.t.genres.find(unknown)! }
+}
+
 export interface DailyPicks {
   date: string
   together: string[] // lista "Hoy para ustedes"
@@ -148,7 +190,17 @@ export function buildDaily(catalog: Title[], votes: Record<PersonId, Votes>, s: 
     .sort((x, y) => y.score - x.score)
     .slice(0, size)
   const reasons: Record<string, string> = {}
+  // el comodín toma el lugar del último de la lista y se muestra tercero, nunca como la elección de hoy
+  const wild = wildcard(pool, wa, wb, votes, new Set(scored.slice(0, size - 1).map(({ t }) => t.id)), date)
+  if (wild && scored.length >= 3) {
+    scored.splice(size - 1, 1)
+    scored.splice(2, 0, { t: wild.t, score: 0 })
+  }
   scored.forEach(({ t }) => {
+    if (t === wild?.t) {
+      reasons[t.id] = `${WILDCARD}: ${wild.genre.toLowerCase()} con IMDb ${t.ratings.imdb?.toFixed(1)}, un género que casi no ven.`
+      return
+    }
     const ra = reasonFor(t, likedA)
     const rb = reasonFor(t, likedB)
     if (ra && rb && ra === rb) reasons[t.id] = `Porque a los dos les gustó ${ra}.`
@@ -170,12 +222,13 @@ export function forPerson(catalog: Title[], v: Votes, others: Votes, s: Settings
 }
 
 // Mazo del modo pareja: lo que la persona activa aún no votó, primero lo que la pareja ya marcó con "me gusta"
-export function buildDeck(catalog: Title[], me: Votes, partner: Votes, s: Settings): Title[] {
+// Lo que la pareja marcó con "¡Muero por verla!" va todavía más arriba
+export function buildDeck(catalog: Title[], me: Votes, partner: Votes, s: Settings, partnerEager: string[] = []): Title[] {
   const w = learn(me, catalog)
   const voted = new Set([...me.liked, ...me.disliked, ...me.seen, ...me.passed])
   return catalog
     .filter((t) => eligible(t, s, [me, partner]) && !voted.has(t.id))
-    .map((t) => ({ t, s: affinity(t, w) + quality(t) + (partner.liked.includes(t.id) ? 2.5 : 0) }))
+    .map((t) => ({ t, s: affinity(t, w) + quality(t) + (partner.liked.includes(t.id) ? 2.5 : 0) + (partnerEager.includes(t.id) ? 1.5 : 0) }))
     .sort((a, b) => b.s - a.s)
     .map(({ t }) => t)
 }

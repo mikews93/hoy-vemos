@@ -1,6 +1,6 @@
 // Proceso de madrugada (Vercel Cron, ver vercel.json): para cada hogar arma la lista del día si aún no existe
 // y manda avisos a los teléfonos que los activaron, aunque la app esté cerrada:
-// - algo de Mi lista llegó a sus plataformas;
+// - algo de Mi lista llegó a sus plataformas, o se fue de todas ellas;
 // - hoy sale un episodio nuevo de una serie que van siguiendo.
 // Usa la clave de servicio de Supabase (salta RLS), así que solo responde a Vercel Cron con CRON_SECRET.
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
@@ -99,6 +99,10 @@ async function runHousehold(sb: Db, h: Household, catalog: Title[], date: string
     // Sin foto anterior no se avisa: es la primera vez que se mira este título
     const arrived = before ? now.filter((p) => !before.includes(p) && onPlatforms(p, settings.platforms)) : []
     if (pending.includes(t.id) && arrived.length) pushes.push({ title: `${t.title} llegó a ${arrived[0]}`, body: 'Está en su lista. ¿La ven hoy?', url: `#/titulo/${t.id}` })
+    // Se fue: estaba en una de sus plataformas y ya no está en ninguna (si sigue en otra de las suyas, no hace falta avisar)
+    const left = before ? before.filter((p) => !now.includes(p) && onPlatforms(p, settings.platforms)) : []
+    const still = now.some((p) => onPlatforms(p, settings.platforms))
+    if (pending.includes(t.id) && left.length && !still) pushes.push({ title: `${t.title} se fue de ${left[0]}`, body: 'Estaba en su lista. En su ficha está dónde más se puede ver.', url: `#/titulo/${t.id}` })
     if (following.includes(t.id) && t.nextEpisode?.date === date)
       pushes.push({ title: `Hoy sale un episodio de ${t.title}`, body: `T${t.nextEpisode.season} · E${t.nextEpisode.episode}`, url: `#/titulo/${t.id}` })
   }

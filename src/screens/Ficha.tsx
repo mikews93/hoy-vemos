@@ -8,6 +8,8 @@ import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
 import { onPlatforms } from '../lib/platforms'
 import { SeriesTracker } from '../components/SeriesTracker'
+import { useMissing, useNotes } from '../lib/actions'
+import { PlayTogetherButton } from '../components/PlayTogether'
 
 // Por qué le puede gustar a una persona: primero algo que ya le gustó y se parece; si no, su gusto más fuerte que el título tiene
 function reasonFor(t: Title, v: Votes, byId: Map<string, Title>, catalog: Title[]): string | null {
@@ -33,6 +35,8 @@ export default function Ficha() {
   const known = s.byId.get(id)
   const t = known ?? (fetched?.id === id ? fetched.t : undefined)
   const [showTrailer, setShowTrailer] = useState(false)
+  const missing = useMissing()
+  const notes = useNotes()
   // Lo que no está en el catálogo del día (por ejemplo, algo encontrado al buscar por nombre) se trae aparte
   useEffect(() => {
     if (known || !hasLiveData || s.loading) return
@@ -56,6 +60,8 @@ export default function Ficha() {
   const flat = t.providers.filter((p) => p.kind === 'flatrate')
   const rent = t.providers.filter((p) => p.kind !== 'flatrate')
   const mine = (name: string) => s.settings.platforms.length > 0 && onPlatforms(name, s.settings.platforms)
+  const reported = missing.of(t.id)
+  const reportedOn = reported && new Date(reported.d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })
 
   return (
     <div style={{ paddingBottom: 24 }}>
@@ -111,6 +117,10 @@ export default function Ficha() {
         <button className="btn icon" style={{ height: 52, width: 52 }} aria-label="No me interesa" onClick={() => { s.vote(t.id, 'disliked'); nav(-1) }}>{Icon.ban()}</button>
       </div>
 
+      {s.myList.includes(t.id) && <NoteField id={t.id} value={notes.of(t.id)} onSave={(x) => notes.set(t.id, x)} />}
+
+      <PlayTogetherButton t={t} />
+
       {t.kind === 'tv' && <SeriesTracker t={t} />}
 
       <h2 className="h2 pad" style={{ fontSize: 20, marginTop: 28, marginBottom: 12 }}>Dónde ver</h2>
@@ -125,13 +135,25 @@ export default function Ficha() {
                   {p.kind === 'flatrate' ? (mine(p.name) ? 'Incluida en tu suscripción' : 'Con suscripción') : 'Alquiler o compra'}
                 </span>
               </div>
+              {/* Solo en lo que dice estar en su suscripción: ahí es donde una disponibilidad falsa les hace perder la noche */}
+              {p.kind === 'flatrate' && mine(p.name) && !reported && (
+                <button className="link" style={{ fontSize: 13, color: 'var(--muted)' }} onClick={() => missing.report(t.id, p.name)}>No estaba</button>
+              )}
             </div>
           ))}
         </div>
       ) : (
         <div className="empty" style={{ margin: '0 20px' }}>Sin datos de plataformas en tu país.</div>
       )}
-      <p className="note pad" style={{ marginTop: 8 }}>Disponibilidad en {REGION}. Datos de JustWatch vía TMDB.</p>
+      {reported && (
+        <div className="banner" style={{ margin: '10px 20px 0' }}>
+          El {reportedOn} marcaron que no estaba en {reported.p}. No se la vamos a proponer durante un mes.{' '}
+          <button className="link" onClick={() => missing.undo(t.id)}>Sí estaba, deshacer</button>
+        </div>
+      )}
+      <p className="note pad" style={{ marginTop: 8 }}>
+        Disponibilidad en {REGION}. Datos de JustWatch vía TMDB, que a veces van atrasados: si abren la plataforma y no está, toquen «No estaba».
+      </p>
 
       <h2 className="h2 pad" style={{ fontSize: 20, marginTop: 24, marginBottom: 8 }}>De qué trata</h2>
       <p className="pad" style={{ margin: 0, fontSize: 15, lineHeight: 1.55, color: 'var(--text-2)' }}>{t.overview || 'Sin sinopsis disponible.'}</p>
@@ -160,4 +182,26 @@ function Thumb({ src, letter, size, radius, style }: { src?: string; letter: str
   const box: React.CSSProperties = { width: size, height: size, borderRadius: radius, background: '#2E2A36', flexShrink: 0 }
   if (src && !failed) return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} style={{ ...box, objectFit: 'cover', display: 'block' }} />
   return <div style={{ ...box, display: 'flex', alignItems: 'center', justifyContent: 'center', ...style }}>{letter}</div>
+}
+
+// Nota privada del hogar sobre un título guardado ("nos la recomendó Ana"); se guarda al salir del campo
+function NoteField({ id, value, onSave }: { id: string; value: string; onSave: (text: string) => void }) {
+  const [text, setText] = useState(value)
+  useEffect(() => setText(value), [value])
+  return (
+    <div className="pad" style={{ marginTop: 14 }}>
+      <label htmlFor={`nota-${id}`} style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-2)' }}>Nota para ustedes</label>
+      <input
+        id={`nota-${id}`}
+        className="input"
+        value={text}
+        maxLength={140}
+        placeholder="Por ejemplo: nos la recomendó Ana"
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => text.trim() !== value && onSave(text)}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        style={{ marginTop: 6, width: '100%' }}
+      />
+    </div>
+  )
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../lib/store'
 import { useChooseTonight } from '../lib/actions'
-import { decideFor, type Who } from '../lib/recommender'
+import { decideFor, eagerOf, type Who } from '../lib/recommender'
 import { fitsTonight, TIME_LABELS, useTonight, WHO_LABELS, type Company, type TimeBudget } from '../lib/tonight'
 import { Icon, Poster, metaLine, scoreLabel } from './ui'
 import type { Title } from '../data/types'
@@ -38,13 +38,15 @@ function useBoost(): Record<string, number> {
     s.daily?.together.forEach((id) => (boost[id] = 1))
     s.myList.filter((id) => !s.watched.includes(id)).forEach((id) => (boost[id] = (boost[id] ?? 0) + 1.5))
     s.votes.a.liked.filter((id) => s.votes.b.liked.includes(id)).forEach((id) => (boost[id] = (boost[id] ?? 0) + 3))
+    // "¡Muero por verla!" de cualquiera de los dos pesa un poco más que un "me gusta"
+    ;(['a', 'b'] as const).forEach((p) => eagerOf(s.settings, s.keys[p], s.votes[p]).forEach((id) => (boost[id] = (boost[id] ?? 0) + 1.5)))
     // una serie que ya van viendo es la propuesta más fácil para esta noche
     Object.entries(s.settings.progress ?? {}).forEach(([id, p]) => {
       const t = s.byId.get(id)
       if (t && nextUp(t, p).kind === 'episode') boost[id] = (boost[id] ?? 0) + 2.5
     })
     return boost
-  }, [s.daily, s.myList, s.watched, s.votes, s.settings.progress, s.byId])
+  }, [s.daily, s.myList, s.watched, s.votes, s.settings, s.keys, s.byId])
 }
 
 export function useTonightPicks(rewatch = false): Title[] {
