@@ -15,6 +15,7 @@ import Login from './screens/Login'
 import Invitados from './screens/Invitados'
 import Resumen from './screens/Resumen'
 import { NeedAccount } from './components/Account'
+import { PlayTogetherHost } from './components/PlayTogether'
 import './styles.css'
 
 // Enlace de invitación #/unirse/CODIGO: se guarda el código y se usa al entrar
@@ -61,6 +62,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showTabs && <TabBar />}
+      <PlayTogetherHost />
     </div>
   )
 }

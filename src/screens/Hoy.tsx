@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStore } from '../lib/store'
-import { forPerson } from '../lib/recommender'
+import { forPerson, isWildcard } from '../lib/recommender'
 import { fitsTonight, useTonight } from '../lib/tonight'
 import { notifyArrivals, trackArrivals } from '../lib/arrivals'
 import { DecideSheet, TonightBar } from '../components/Tonight'
@@ -43,6 +43,8 @@ export default function Hoy() {
   const picks = useMemo(() => (s.daily?.together ?? []).map((id) => s.byId.get(id)).filter(Boolean) as Title[], [s.daily, s.byId])
   const visible = picks.filter((t) => fits(t) && !inProgress.has(t.id) && !s.votes.a.seen.includes(t.id) && !s.votes.b.seen.includes(t.id))
   const [hero, ...rest] = visible
+  // el comodín de la lista del día se marca para que se entienda por qué no se parece a lo de siempre
+  const wildLabels = Object.fromEntries(rest.filter((t) => isWildcard(s.daily?.reasons[t.id])).map((t) => [t.id, 'Fuera de lo de siempre']))
 
   const matches = useMemo(
     () =>
@@ -159,7 +161,7 @@ export default function Hoy() {
 
       {rest.length > 0 && (
         <Section title="Más para hoy">
-          <Rail items={rest} matchIds={matches.map((m) => m.id)} />
+          <Rail items={rest} matchIds={matches.map((m) => m.id)} labels={wildLabels} />
         </Section>
       )}
 
