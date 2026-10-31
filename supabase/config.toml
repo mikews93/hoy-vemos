@@ -1,0 +1,3 @@
+# Lo mínimo para que el CLI de Supabase aplique supabase/migrations/ (ver .github/workflows/migraciones.yml).
+# No se usa para correr Supabase en local.
+project_id = "hoy-vemos"
