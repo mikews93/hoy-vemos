@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useStore } from '../lib/store'
 import { PLATFORMS } from '../data/demo'
 import { RateGrid } from './Onboarding'
@@ -9,6 +9,7 @@ import { useVetoes } from '../lib/actions'
 import { ImportHistory } from '../components/ImportHistory'
 import { PushToggle } from '../components/PushToggle'
 import { canPush } from '../lib/push'
+import { isTV } from '../lib/tv'
 import { TOPICS, TOPIC_PREFIX, topicKey } from '../lib/topics'
 import type { PersonId } from '../data/types'
 import { checkOmdb, type OmdbStatus } from '../data/live'
@@ -168,6 +169,16 @@ export default function Perfil() {
         </>
       )}
 
+      {s.cloud && !isTV && (
+        <>
+          <div className="row-head"><h2 className="h2">Hoy Vemos en la TV</h2></div>
+          <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p className="sub" style={{ margin: 0 }}>Abre Hoy Vemos en el televisor y toca Entrar: aparece un código. Escríbelo aquí y el televisor entra con tu cuenta, sin teclear con el control.</p>
+            <Link to="/tv" className="btn">Conectar un televisor</Link>
+          </div>
+        </>
+      )}
+
       <div className="row-head"><h2 className="h2">Lista de hoy</h2></div>
       <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <p className="sub" style={{ margin: 0 }}>{s.cloud ? 'Se arma sola cada madrugada.' : 'Se arma sola cada día al abrir la app.'} Si cambiaste filtros o gustos, puedes rehacerla ahora.</p>
@@ -183,6 +194,7 @@ export default function Perfil() {
             {omdb && <p className="sub" style={{ margin: 0 }} aria-live="polite">{OMDB_TEXT[omdb]}</p>}
           </>
         )}
+        <Link to="/privacidad" style={{ fontSize: 13 }}>Política de privacidad</Link>
         <p className="note" style={{ margin: 0 }}>Esta app usa la API de TMDB, pero no está respaldada ni certificada por TMDB. Notas de IMDb, Rotten Tomatoes y Metacritic vía OMDb; disponibilidad de JustWatch vía TMDB.</p>
         {confirmReset ? (
           <div style={{ display: 'flex', gap: 10 }}>

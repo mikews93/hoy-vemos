@@ -16,7 +16,12 @@ import Invitados from './screens/Invitados'
 import Resumen from './screens/Resumen'
 import { NeedAccount } from './components/Account'
 import { PlayTogetherHost } from './components/PlayTogether'
+import { TvApprove } from './components/TvLink'
+import Privacidad from './screens/Privacidad'
+import { startTV } from './lib/tv'
 import './styles.css'
+
+startTV()
 
 // Enlace de invitación #/unirse/CODIGO: se guarda el código y se usa al entrar
 const invite = /^#\/unirse\/([A-Za-z0-9]+)/.exec(location.hash)
@@ -45,8 +50,9 @@ function App() {
   const s = useStore()
   const loc = useLocation()
   if (s.loading && s.cloud) return <div className="empty" style={{ marginTop: 80 }}>Trayendo lo mejor de hoy…</div>
-  if (!s.onboarded && loc.pathname !== '/bienvenida') return <Navigate to="/bienvenida" replace />
-  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida' && loc.pathname !== '/invitados' && loc.pathname !== '/resumen'
+  // la política de privacidad (la revisan las tiendas de apps) y conectar un televisor se abren sin pasar por la bienvenida
+  if (!s.onboarded && loc.pathname !== '/bienvenida' && loc.pathname !== '/privacidad' && !loc.pathname.startsWith('/tv')) return <Navigate to="/bienvenida" replace />
+  const showTabs = s.onboarded && !loc.pathname.startsWith('/titulo') && loc.pathname !== '/bienvenida' && loc.pathname !== '/invitados' && loc.pathname !== '/resumen' && loc.pathname !== '/privacidad' && !loc.pathname.startsWith('/tv')
   return (
     <div className="app">
       <Routes>
@@ -59,6 +65,9 @@ function App() {
         <Route path="/bienvenida" element={<Onboarding />} />
         <Route path="/invitados" element={<Invitados />} />
         <Route path="/resumen" element={<Resumen />} />
+        <Route path="/tv" element={<TvApprove />} />
+        <Route path="/tv/:code" element={<TvApprove />} />
+        <Route path="/privacidad" element={<Privacidad />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {showTabs && <TabBar />}

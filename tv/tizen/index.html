@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Hoy Vemos</title>
+  <style>html,body{margin:0;height:100%;background:#0F0E13;color:#F5F1EA;font:600 32px system-ui,sans-serif;display:flex;align-items:center;justify-content:center}</style>
+</head>
+<body>
+  <p id="m">Abriendo Hoy Vemos…</p>
+  <script>
+    // Si no hay internet, se avisa en vez de quedar en negro; al volver la conexión se intenta de nuevo
+    var URL_APP = 'https://hoyvemos.migueblanco.com/?tv=1'
+    function go() { if (navigator.onLine === false) { document.getElementById('m').textContent = 'Sin internet. Revisa la conexión del televisor.'; return } location.replace(URL_APP) }
+    window.addEventListener('online', go)
+    go()
+  </script>
+</body>
+</html>

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { googleEnabled, pendingInvite, supabase } from '../lib/supabase'
 import { guestName, type LoginMode } from '../lib/store'
 import { Icon } from '../components/ui'
+import { TvLogin } from '../components/TvLink'
+import { isTV } from '../lib/tv'
 
 // Entrar o crear cuenta con Google, con un enlace al correo (sin contraseña) o con correo y contraseña. Se abre encima de la app cuando algo necesita cuenta (reason dice qué).
 // Si llegó con un enlace de invitación, al entrar queda unido a su pareja. Lo que hizo sin cuenta pasa a la cuenta.
@@ -15,6 +17,8 @@ export default function Login({ reason, initialMode, notice, onClose }: { reason
   const [msg, setMsg] = useState<{ text: string; ok?: boolean } | null>(notice ? { text: notice } : null)
   const [unconfirmed, setUnconfirmed] = useState(Boolean(notice))
   const [google, setGoogle] = useState(false)
+  // En el televisor se entra con el celular (código y QR); el correo queda como segunda opción
+  const [withPhone, setWithPhone] = useState(isTV && !invited)
 
   // El botón de Google solo aparece cuando el proveedor está activado en Supabase
   useEffect(() => {
@@ -104,6 +108,14 @@ export default function Login({ reason, initialMode, notice, onClose }: { reason
   return (
     <div className="screen" style={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingBottom: 40 }}>
       <button className="btn icon" aria-label="Seguir sin cuenta" onClick={onClose} style={{ position: 'absolute', top: 'calc(16px + env(safe-area-inset-top))', right: 16, borderRadius: 22, width: 44, height: 44 }}>{Icon.x(20)}</button>
+      {withPhone ? (
+        <div className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <span className="eyebrow">Hoy Vemos</span>
+          <h1 className="h1" style={{ fontSize: 36 }}>Entra con tu celular</h1>
+          {reason && <p className="sub" style={{ margin: 0 }}>{reason}</p>}
+          <TvLogin onEmail={() => setWithPhone(false)} />
+        </div>
+      ) : (
       <form className="pad" style={{ display: 'flex', flexDirection: 'column', gap: 16 }} onSubmit={submit}>
         <span className="eyebrow">Hoy Vemos</span>
         <h1 className="h1" style={{ fontSize: 36 }}>{invited ? 'Te invitaron a elegir juntos' : mode === 'in' ? 'Hola de nuevo' : 'Crea tu cuenta'}</h1>
@@ -144,7 +156,9 @@ export default function Login({ reason, initialMode, notice, onClose }: { reason
           Prefiero sin contraseña: envíenme un enlace al correo
         </button>
         {mode === 'in' && <button type="button" className="btn block" style={{ background: 'transparent', border: 0, color: 'var(--muted)', fontSize: 13 }} onClick={reset}>Olvidé mi contraseña</button>}
+        {isTV && <button type="button" className="btn block" style={{ background: 'transparent' }} onClick={() => setWithPhone(true)}>Mejor entrar con el celular</button>}
       </form>
+      )}
     </div>
   )
 }

@@ -2,10 +2,18 @@
   "name": "Hoy Vemos",
   "short_name": "Hoy Vemos",
   "description": "Qué ver hoy en pareja: solo lo mejor, elegido para ustedes cada día.",
+  "id": "/",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0F0E13",
   "theme_color": "#0F0E13",
   "lang": "es",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "categories": ["entertainment"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
 }
