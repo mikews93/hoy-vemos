@@ -9,6 +9,12 @@ Para probarlo en el computador: abre la app con `?tv=1` y usa las flechas, Enter
 
 ## Samsung (Tizen) — `tv/tizen`
 
+`index.html` muestra la web dentro de un marco y hace de puente (`src/lib/tvShell.ts`): en la ficha, cada
+plataforma de su suscripción tiene un botón «Abrir» que abre esa app del televisor (Netflix, Prime Video, Disney+,
+Max, Apple TV+, Paramount+). Abre la app en su inicio: los servicios no dejan saltar a una película concreta
+sin un acuerdo con ellos, así que la ficha deja el nombre a la vista para buscarlo. Atrás en la pantalla de
+inicio cierra la app. Los identificadores de cada app están en `APPS` dentro de `index.html`.
+
 Instalar en su propio televisor, sin tienda (desde el Mac):
 
 1. Instalar Tizen Studio (o solo su CLI) y, desde el Package Manager, la extensión "Samsung TV Extension" y

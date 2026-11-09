@@ -3,16 +3,86 @@
 <head>
   <meta charset="utf-8">
   <title>Hoy Vemos</title>
-  <style>html,body{margin:0;height:100%;background:#0F0E13;color:#F5F1EA;font:600 32px system-ui,sans-serif;display:flex;align-items:center;justify-content:center}</style>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0F0E13; color: #F5F1EA; font: 600 32px system-ui, sans-serif; overflow: hidden; }
+    #m { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #0F0E13; }
+  </style>
 </head>
 <body>
   <p id="m">Abriendo Hoy Vemos…</p>
   <script>
-    // Si no hay internet, se avisa en vez de quedar en negro; al volver la conexión se intenta de nuevo
-    var URL_APP = 'https://hoyvemos.migueblanco.com/?tv=1'
-    function go() { if (navigator.onLine === false) { document.getElementById('m').textContent = 'Sin internet. Revisa la conexión del televisor.'; return } location.replace(URL_APP) }
-    window.addEventListener('online', go)
-    go()
+    // La app del Samsung muestra la web de Hoy Vemos dentro de un marco y le presta lo que solo una app instalada
+    // puede hacer: abrir otras apps del televisor (Netflix, Prime Video…) y cerrarse. La web pide por postMessage
+    // (src/lib/tvShell.ts). La web va dentro del marco con su propio dominio, así que sus llamadas a /api siguen
+    // siendo del mismo sitio y los proxies que cuidan las claves funcionan igual.
+    var ORIGIN = 'https://hoyvemos.migueblanco.com'
+    var APP_URL = ORIGIN + '/?tv=1&shell=tizen'
+
+    // Identificadores de cada app en los televisores Samsung; algunas tienen varios según el año del televisor
+    var APPS = {
+      'Netflix': ['3201907018807', '11101200001'],
+      'Prime Video': ['3201910019365', '3201512006785'],
+      'Disney+': ['3201901017640', '3202009021709', '3202204027038'],
+      'Max': ['3202301029760', '3201601007230'],
+      'Apple TV+': ['3201807016597'],
+      'Paramount+': ['3201710014981', '3202110025305']
+    }
+
+    var frame = null
+
+    function launch(ids, done) {
+      if (!window.tizen || !ids.length) return done(false)
+      try {
+        tizen.application.launch(ids[0], function () { done(true) }, function () { launch(ids.slice(1), done) })
+      } catch (e) {
+        launch(ids.slice(1), done)
+      }
+    }
+
+    function exitApp() {
+      try { tizen.application.getCurrentApplication().exit() } catch (e) {}
+    }
+
+    window.addEventListener('message', function (e) {
+      if (e.origin !== ORIGIN || !frame || e.source !== frame.contentWindow) return
+      var d = e.data || {}
+      if (d.hv === 'launch') {
+        launch(APPS[d.platform] || [], function (ok) {
+          frame.contentWindow.postMessage({ hv: 'launched', id: d.id, ok: ok }, ORIGIN)
+        })
+      } else if (d.hv === 'exit') {
+        exitApp()
+      }
+    })
+
+    // Si una tecla del control llega aquí (el marco perdió el foco), se le pasa a la web y se le devuelve el foco
+    window.addEventListener('keydown', function (e) {
+      if (!frame) return
+      e.preventDefault()
+      frame.contentWindow.postMessage({ hv: 'key', key: e.key, keyCode: e.keyCode }, ORIGIN)
+      frame.focus()
+    })
+
+    // Al volver de Netflix u otra app, el foco regresa a la web
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && frame) frame.focus()
+    })
+
+    function start() {
+      if (navigator.onLine === false) {
+        document.getElementById('m').textContent = 'Sin internet. Revisa la conexión del televisor.'
+        return
+      }
+      if (frame) return
+      frame = document.createElement('iframe')
+      frame.src = APP_URL
+      frame.allow = 'autoplay; encrypted-media; fullscreen'
+      frame.onload = function () { frame.focus() }
+      document.body.appendChild(frame)
+    }
+    window.addEventListener('online', start)
+    start()
   </script>
 </body>
 </html>

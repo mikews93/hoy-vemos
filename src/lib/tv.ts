@@ -4,6 +4,8 @@
 // - Las flechas mueven el foco al botón o póster más cercano en esa dirección, OK lo abre y Atrás cierra lo que
 //   esté abierto o vuelve a la pantalla anterior.
 
+import { exitApp, shell } from './tvShell'
+
 const KEY = 'hv.tv'
 const TV_UA = /Tizen|Web0S|webOS|SMART-TV|SmartTV|HbbTV|Android TV|GoogleTV|AFT[A-Z]|BRAVIA|CrKey/i
 
@@ -157,6 +159,11 @@ function back(e: KeyboardEvent) {
     history.back()
     return
   }
+  // dentro de la app del Samsung, la que cierra es la app que la contiene
+  if (exitApp()) {
+    e.preventDefault()
+    return
+  }
   const tizen = (window as unknown as { tizen?: { application: { getCurrentApplication(): { exit(): void } } } }).tizen
   if (tizen) {
     e.preventDefault()
@@ -192,6 +199,15 @@ export function startTV() {
   if (!isTV) return
   document.documentElement.classList.add('tv')
   window.addEventListener('keydown', onKey)
+  // Si el foco quedó en la app que contiene a la web, ella reenvía aquí las teclas del control
+  if (shell) {
+    window.addEventListener('message', (m) => {
+      const d = m.data as { hv?: string; key?: string; keyCode?: number }
+      if (m.source !== window.parent || d?.hv !== 'key') return
+      window.focus()
+      onKey({ key: d.key ?? '', keyCode: d.keyCode ?? 0, isTrusted: true, preventDefault() {} } as unknown as KeyboardEvent)
+    })
+  }
   // al cambiar de pantalla el foco se queda en algo que ya no existe: se pone en lo primero de la nueva
   window.addEventListener('hashchange', () => {
     setTimeout(() => {
