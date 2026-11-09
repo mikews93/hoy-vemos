@@ -6,7 +6,8 @@ import { TrailerModal } from '../components/Trailer'
 import { REGION, hasLiveData, loadTitles } from '../data/live'
 import { learn, tasteFor } from '../lib/recommender'
 import type { PersonId, Title, Votes } from '../data/types'
-import { onPlatforms } from '../lib/platforms'
+import { onPlatforms, platformOf } from '../lib/platforms'
+import { canLaunch, launchApp } from '../lib/tvShell'
 import { SeriesTracker } from '../components/SeriesTracker'
 import { useMissing, useNotes } from '../lib/actions'
 import { PlayTogetherButton } from '../components/PlayTogether'
@@ -35,6 +36,7 @@ export default function Ficha() {
   const known = s.byId.get(id)
   const t = known ?? (fetched?.id === id ? fetched.t : undefined)
   const [showTrailer, setShowTrailer] = useState(false)
+  const [launch, setLaunch] = useState<{ text: string; ok?: boolean } | null>(null)
   const missing = useMissing()
   const notes = useNotes()
   // Lo que no está en el catálogo del día (por ejemplo, algo encontrado al buscar por nombre) se trae aparte
@@ -61,6 +63,12 @@ export default function Ficha() {
   const rent = t.providers.filter((p) => p.kind !== 'flatrate')
   const mine = (name: string) => s.settings.platforms.length > 0 && onPlatforms(name, s.settings.platforms)
   const reported = missing.of(t.id)
+  // La app de la plataforma abre en su inicio: se deja el nombre a la vista para buscarlo con el control
+  const openOn = async (platform: string) => {
+    setLaunch({ text: `Abriendo ${platform}… busquen «${t.title}».` })
+    const ok = await launchApp(platform, t.title)
+    setLaunch(ok ? { text: `Se abrió ${platform}. Busquen «${t.title}».`, ok: true } : { text: `No pudimos abrir ${platform}. Revisen que esté instalada en este televisor.` })
+  }
   const reportedOn = reported && new Date(reported.d + 'T12:00').toLocaleDateString('es', { day: 'numeric', month: 'long' })
 
   return (
@@ -135,6 +143,10 @@ export default function Ficha() {
                   {p.kind === 'flatrate' ? (mine(p.name) ? 'Incluida en tu suscripción' : 'Con suscripción') : 'Alquiler o compra'}
                 </span>
               </div>
+              {/* En la app del televisor: abrir directamente la app de esa plataforma */}
+              {p.kind === 'flatrate' && canLaunch(platformOf(p.name)) && (
+                <button className="btn gold" style={{ height: 40, fontSize: 14 }} onClick={() => openOn(platformOf(p.name)!)}>{Icon.play(16)}Abrir</button>
+              )}
               {/* Solo en lo que dice estar en su suscripción: ahí es donde una disponibilidad falsa les hace perder la noche */}
               {p.kind === 'flatrate' && mine(p.name) && !reported && (
                 <button className="link" style={{ fontSize: 13, color: 'var(--muted)' }} onClick={() => missing.report(t.id, p.name)}>No estaba</button>
@@ -145,6 +157,7 @@ export default function Ficha() {
       ) : (
         <div className="empty" style={{ margin: '0 20px' }}>Sin datos de plataformas en tu país.</div>
       )}
+      {launch && <p className="sub pad" role="status" style={{ marginTop: 10, color: launch.ok ? 'var(--ok)' : 'var(--text-2)' }}>{launch.text}</p>}
       {reported && (
         <div className="banner" style={{ margin: '10px 20px 0' }}>
           El {reportedOn} marcaron que no estaba en {reported.p}. No se la vamos a proponer durante un mes.{' '}
