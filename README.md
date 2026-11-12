@@ -25,7 +25,7 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 - **No estaba ahí**: en "Dónde ver", junto a cada plataforma de su suscripción, "No estaba" esconde el título de todo lo compartido durante un mes (`settings.missing`, `isMissing` en `src/lib/recommender.ts`). Los datos de TMDB vienen de JustWatch y a veces van atrasados.
 - **Comodín**: la lista del día lleva, en tercer lugar, una joya con IMDb 7.8 o más de géneros que casi no ven, marcada "Fuera de lo de siempre". Sale cuando ya hay 5 "me gusta" o más.
 - **Notas**: en la ficha de algo guardado, "Nota para ustedes" ("nos la recomendó Ana"); se ve en Mi lista (`settings.notes`).
-- **Darle play juntos**: para parejas en casas distintas (con cuenta y la pareja unida). En la ficha, una cuenta regresiva de 10 segundos llega a los dos teléfonos por Supabase Realtime (broadcast privado, sin guardar nada) para darle play a la vez. No controla la plataforma: cada uno le da play en la suya. Necesita correr `supabase/migrations/20261030000000_play_together.sql` en Supabase → SQL Editor (solo deja usar el canal a quienes son del hogar).
+- **Darle play juntos**: para parejas en casas distintas (con cuenta y la pareja unida). En la ficha, una cuenta regresiva de 10 segundos llega a los dos teléfonos por Supabase Realtime (broadcast privado, sin guardar nada) para darle play a la vez. No controla la plataforma: cada uno le da play en la suya. Su migración (`20261030000000_play_together.sql`) solo deja usar el canal a quienes son del hogar.
 - **Ánimo con IA**: en Explorar, "Buscar con IA" entiende pedidos como "algo como Dark pero más corto" (`api/mood.ts`, necesita `ANTHROPIC_API_KEY` en Vercel). Sin la clave queda la búsqueda por palabras.
 - **Seguimiento de series**: en la ficha de una serie, "Su avance" muestra por dónde van, el botón "Vimos el T2 · E6" y las temporadas para marcar de un toque. Hoy muestra "Seguir viendo" con el próximo episodio, y "Decide tú" prefiere lo que ya van viendo. Al terminar la última temporada queda como vista; si la serie sigue, dice cuándo sale el próximo episodio. El avance es del hogar (`settings.progress`) y los episodios vienen de TMDB (`src/lib/series.ts`).
 - **Importar historial**: en Perfil (y al final de la bienvenida) se sube el ratings.csv de IMDb o de Letterboxd. Todo cuenta como visto; 7 o más de 10 cuenta como "me gustó" y 4 o menos como "no me interesa". Lo ya calificado en la app no se pisa. Los títulos que no están en el catálogo se traen livianos desde TMDB (sin gastar OMDb) solo para aprender gustos (`src/lib/importHistory.ts`).
@@ -38,7 +38,7 @@ App web instalable (PWA) que le arma a una pareja una lista diaria de películas
 
 Para activarlo:
 
-1. En Supabase → SQL Editor, correr `supabase/migrations/20261023000000_push.sql` (tabla `push_subscriptions` y columna `households.provider_snapshot`).
+1. La migración `supabase/migrations/20261023034024_push.sql` (tabla `push_subscriptions` y columna `households.provider_snapshot`) ya está aplicada; las nuevas las aplica la Action `Migraciones`.
 2. En Vercel → Settings → Environment Variables:
 
 | Variable | Valor |
@@ -78,7 +78,7 @@ Con `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` cada uno usa su propio teléf
 - Al crear la cuenta se crea un **hogar**. En Perfil → "Invita a tu pareja" se comparte un enlace (`#/unirse/CODIGO`) o el código de 6 letras; quien lo abre y crea su cuenta queda en el mismo hogar.
 - Votos, Mi lista, la lista del día y los ajustes (plataformas, nota mínima) se guardan en Supabase y llegan al otro teléfono al instante (Realtime). Si los dos le dan "me gusta" a lo mismo, el "¡Coinciden!" aparece aunque el otro haya votado desde su teléfono.
 - La lista del día es del hogar: la arma el primero que abre la app ese día.
-- Esquema, políticas RLS y funciones: `supabase/migrations/`.
+- Esquema, políticas RLS y funciones: `supabase/migrations/`. Se aplican solas: con cada push a `main` que toque esa carpeta, la GitHub Action `Migraciones` corre `supabase db push` (solo lo que la base no tiene). Necesita los secretos `SUPABASE_ACCESS_TOKEN` (Supabase → Account → Access Tokens) y `SUPABASE_DB_PASSWORD` (la contraseña de la base) en GitHub → Settings → Secrets → Actions. Una migración nueva va en un archivo cuyo nombre empieza con la fecha y hora (`AAAAMMDDHHMMSS_nombre.sql`), posterior a la última.
 
 Sin esas variables la app funciona como antes: un dispositivo compartido, todo guardado en el navegador.
 

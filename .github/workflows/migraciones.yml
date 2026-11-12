@@ -1,0 +1,32 @@
+# Aplica las migraciones nuevas de supabase/migrations/ a la base de producción en cada push a main.
+# `supabase db push` solo corre las que la base aún no tiene (las lleva en supabase_migrations.schema_migrations),
+# así que el nombre de cada archivo nuevo debe empezar con una fecha posterior a la última aplicada.
+# Necesita dos secretos del repositorio: SUPABASE_ACCESS_TOKEN y SUPABASE_DB_PASSWORD.
+name: Migraciones
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/migrations/**']
+  workflow_dispatch:
+
+concurrency:
+  group: migraciones
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      PROJECT_REF: aeplziigagwpkaqfxrfq
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.48.3
+      - run: supabase link --project-ref "$PROJECT_REF"
+      - name: Migraciones pendientes
+        run: supabase migration list
+      - run: supabase db push
