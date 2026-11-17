@@ -92,6 +92,7 @@ label.field { display: flex; flex-direction: column; gap: 8px; font-size: 13px; 
 .swipe-card .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 60%; background: linear-gradient(to top, var(--bg) 30%, rgba(15,14,19,0)); }
 .stamp { position: absolute; top: 28px; font-family: var(--display); font-weight: 800; font-size: 28px; padding: 6px 14px; border-radius: 12px; border: 3px solid; transform: rotate(-12deg); }
 
+.overlay.decide > * { flex-shrink: 0; }
 .overlay { position: fixed; inset: 0; background: rgba(15,14,19,.97); z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px; text-align: center; }
 
 .score-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -141,8 +142,8 @@ button.link { background: none; border: 0; padding: 0; font: inherit; color: var
 .backup .poster .pscore, .backup .poster .ptitle { display: none; }
 
 /* Modo televisor (src/lib/tv.ts): todo más grande para verlo desde el sofá, la barra de secciones arriba y un
-   borde dorado en lo que tiene el foco del control remoto. Equivale a ver la app en una pantalla de 1280×720. */
-html.tv { zoom: 1.5; }
+   borde dorado en lo que tiene el foco del control remoto. El zoom lo pone src/lib/tv.ts según el ancho de la
+   pantalla (y el zoom que ya tenga el navegador), para que siempre equivalga a una pantalla de 1280 de ancho. */
 html.tv body { overflow-x: hidden; }
 html.tv .app { max-width: 1180px; display: flex; flex-direction: column; padding-bottom: 48px; min-height: 0; }
 html.tv .app > .tabbar { order: -1; position: static; background: transparent; border: 0; padding: 18px 0 0; }
@@ -158,7 +159,7 @@ html.tv .hero { margin: 0 40px; height: 420px; }
 html.tv .hero .body { max-width: 640px; }
 html.tv .grid3 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 html.tv .deck { max-width: 400px; margin-left: auto; margin-right: auto; height: 360px; }
-html.tv .login-sheet .app, html.tv .overlay > * { max-width: 760px; }
+html.tv .login-sheet .app { max-width: 760px; }
 html.tv .empty { margin-left: 40px; margin-right: 40px; }
 html.tv .banner { margin-left: 40px; margin-right: 40px; }
 html.tv .login-sheet { min-height: 0; }
@@ -186,3 +187,6 @@ html.tv .chip:focus { border-radius: 999px; }
 .legal p, .legal li { margin: 6px 0; }
 html.tv .input, html.tv .btn.block, html.tv label.field { max-width: 760px; }
 html.tv .login-sheet .screen { min-height: 0 !important; padding-top: 48px; }
+/* "Decide tú" en la TV: la tarjeta más baja para que los botones y las alternativas quepan sin bajar */
+html.tv .overlay.decide { padding-top: 28px; }
+html.tv .decide-card { height: calc(var(--tv-h, 720px) * .42); min-height: 240px; }

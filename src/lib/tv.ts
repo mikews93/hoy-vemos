@@ -198,6 +198,16 @@ function onKey(e: KeyboardEvent) {
 export function startTV() {
   if (!isTV) return
   document.documentElement.classList.add('tv')
+  // Todo se agranda hasta equivaler a una pantalla de 1280 de ancho. Se calcula con el ancho real porque el
+  // navegador del televisor a veces ya trae su propio zoom (el de Samsung viene en 125 %) y se sumarían.
+  const fit = () => {
+    const z = Math.min(2, Math.max(1, innerWidth / 1280))
+    document.documentElement.style.setProperty('zoom', String(z))
+    // alto de la pantalla en unidades ya agrandadas (vh no se comporta igual con zoom en todos los navegadores)
+    document.documentElement.style.setProperty('--tv-h', `${Math.round(innerHeight / z)}px`)
+  }
+  fit()
+  window.addEventListener('resize', fit)
   window.addEventListener('keydown', onKey)
   // Si el foco quedó en la app que contiene a la web, ella reenvía aquí las teclas del control
   if (shell) {
